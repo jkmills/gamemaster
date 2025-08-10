@@ -13,15 +13,10 @@ services:
         value: production
       - key: SESSION_COOKIE_SECRET
         generateValue: true
-      - key: PUBLIC_BASE_URL
-        fromService: true
-        name: gamemaster-mvp
-        type: web
       # Render provides PORT automatically; server.js reads process.env.PORT
     healthCheckPath: /
     headers:
       - path: /*
         name: Cache-Control
         value: no-store
-    allowDeploys: true
     pullRequestPreviewsEnabled: false
