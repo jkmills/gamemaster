@@ -1,6 +1,38 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { io, Socket } from "socket.io-client";
+import Image from "next/image";
+
+function UnoCard({ code }: { code: string }) {
+  const { src, label } = useMemo(() => {
+    const colorKey = code[0];
+    const isWild = colorKey === 'W';
+    const src = isWild
+      ? '/uno/uno_wild.png'
+      : colorKey === 'R'
+      ? '/uno/uno_red.png'
+      : colorKey === 'Y'
+      ? '/uno/uno_yellow.png'
+      : colorKey === 'G'
+      ? '/uno/uno_green.png'
+      : '/uno/uno_blue.png';
+    let body = code.slice(1);
+    if (isWild) {
+      if (code.startsWith('W+4')) body = '+4'; else body = 'W';
+    } else if (body === 'RV') body = 'Rev';
+    else if (body === 'S') body = 'Skip';
+    const label = body || '';
+    return { src, label };
+  }, [code]);
+  return (
+    <div className="relative w-16 h-24 rounded shadow border overflow-hidden">
+      <Image src={src} alt={code} fill style={{ objectFit: 'cover' }} />
+      <div className="absolute inset-0 flex items-center justify-center text-white font-bold text-base drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]">
+        {label}
+      </div>
+    </div>
+  );
+}
 
 type RoomState = {
   code: string;
@@ -37,10 +69,26 @@ export default function TablePage() {
   }, []);
 
   const canStart = room && room.status === "lobby" && (room.playerCounts?.length || 0) >= 2;
+  const currentPlayerName = useMemo(() => {
+    if (!room?.turn) return null;
+    const p = room.playerCounts?.find(p => p.id === room.turn);
+    return p?.name || room.turn;
+  }, [room]);
+  const joinUrl = useMemo(() => {
+    if (!room?.code) return '';
+    if (typeof window === 'undefined') return '';
+    const origin = window.location.origin;
+    return `${origin}/mobile?code=${encodeURIComponent(room.code)}`;
+  }, [room]);
 
   return (
     <main className="space-y-4">
       <h2 className="text-xl font-semibold">Table</h2>
+      {room?.turn && (
+        <div className="rounded bg-emerald-600 text-white px-3 py-2 text-sm font-semibold shadow">
+          Turn: {currentPlayerName ?? room.turn}
+        </div>
+      )}
       <div className="flex flex-wrap gap-2 items-end">
         <label className="block">
           <span className="text-sm">Room Code</span>
@@ -115,8 +163,34 @@ export default function TablePage() {
           <div className="space-y-2">
             <div className="text-sm">Code: <span className="font-mono">{room.code}</span></div>
             <div className="text-sm">Status: {room.status}</div>
-            <div className="text-sm">Discard Top: <span className="font-mono">{room.discardTop ?? "—"}</span></div>
-            <div className="text-sm">Turn: <span className="font-mono">{room.turn ?? "—"}</span></div>
+            {room.status === 'lobby' && (
+              <div className="mt-2 p-4 rounded border bg-white/60 dark:bg-black/20 flex flex-col sm:flex-row items-center gap-4">
+                <div className="text-4xl sm:text-5xl font-extrabold tracking-widest font-mono">{room.code}</div>
+                {joinUrl && (
+                  <div className="flex flex-col items-center">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(joinUrl)}`}
+                      alt={`Join ${room.code}`}
+                      className="w-40 h-40 border rounded bg-white"
+                    />
+                    <div className="mt-2 text-xs text-center break-all max-w-xs">
+                      {joinUrl}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="text-sm flex items-center gap-2">Discard Top: <span className="font-mono">{room.discardTop ?? "—"}</span>
+              {room.discardTop && (
+                <div className="ml-2 flex flex-col items-center" aria-label={`Discard ${room.discardTop}`}>
+                  <UnoCard code={room.discardTop} />
+                  <div className="mt-1 text-[10px] leading-none font-mono text-gray-700 dark:text-gray-300" aria-hidden>
+                    {room.discardTop}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="text-sm">Turn: <span className="font-mono">{room.turn ?? "—"}</span>{currentPlayerName ? ` – ${currentPlayerName}` : ''}</div>
             {room.status === 'finished' && (
               <div className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
                 Winner: {(() => {

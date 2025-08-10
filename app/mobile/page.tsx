@@ -174,6 +174,11 @@ export default function MobilePage() {
   return (
     <main className="space-y-4">
       <h2 className="text-xl font-semibold">Mobile</h2>
+      {myTurn && (
+        <div className="rounded bg-emerald-600 text-white px-3 py-2 text-sm font-semibold shadow">
+          Your turn — play a card or draw
+        </div>
+      )}
 
       {!joined ? (
         <div className="space-y-3">
@@ -211,7 +216,12 @@ export default function MobilePage() {
           <div className="text-sm">Status: {room?.status ?? "—"}</div>
           <div className="text-sm flex items-center gap-2">Discard Top: <span className="font-mono">{room?.discardTop ?? "—"}</span>
             {room?.discardTop && (
-              <div className="ml-2"><UnoCard code={room.discardTop} /></div>
+              <div className="ml-2 flex flex-col items-center" aria-label={`Discard ${room.discardTop}`}>
+                <UnoCard code={room.discardTop} />
+                <div className="mt-1 text-[10px] leading-none font-mono text-gray-700 dark:text-gray-300" aria-hidden>
+                  {room.discardTop}
+                </div>
+              </div>
             )}
           </div>
           <div className="text-sm">My Turn: {myTurn ? "Yes" : "No"}</div>
@@ -260,19 +270,24 @@ export default function MobilePage() {
             </>
           ) : (
             <>
-              <div>
+              <div className={myTurn ? "p-2 rounded ring-2 ring-emerald-500/70 shadow animate-pulse" : ""}>
                 <h3 className="font-medium mb-1">My Hand</h3>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-3">
                   {hand.map((c, idx) => (
-                    <button
-                      key={`${c}-${idx}`}
-                      onClick={() => myTurn && play(idx)}
-                      className={`rounded ${myTurn ? "" : "opacity-60 cursor-not-allowed"}`}
-                      disabled={!myTurn}
-                      title={myTurn ? "Play" : "Wait for your turn"}
-                    >
-                      <UnoCard code={c} />
-                    </button>
+                    <div key={`${c}-${idx}`} className="flex flex-col items-center">
+                      <button
+                        onClick={() => myTurn && play(idx)}
+                        className={`rounded ${myTurn ? "" : "opacity-60 cursor-not-allowed"}`}
+                        disabled={!myTurn}
+                        title={myTurn ? "Play" : "Wait for your turn"}
+                        aria-label={`Card ${c}`}
+                      >
+                        <UnoCard code={c} />
+                      </button>
+                      <div className="mt-1 text-[10px] leading-none font-mono text-gray-700 dark:text-gray-300" aria-hidden>
+                        {c}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
