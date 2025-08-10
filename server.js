@@ -210,20 +210,47 @@ app.prepare().then(() => {
       socket.emit('playerHand', { hand: p.hand });
     });
 
-    // reset/cancel the game but keep players
+    // player leaves a room: remove from players/order and adjust turn
+    socket.on('leaveRoom', ({ roomCode, playerId }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const idx = room.order.indexOf(playerId);
+      if (idx !== -1) {
+        room.order.splice(idx, 1);
+      }
+      room.players.delete(playerId);
+      // adjust turnIndex if necessary
+      if (room.turnIndex >= room.order.length) {
+        room.turnIndex = 0;
+      }
+      // if no players left, delete room entirely
+      if (room.order.length === 0) {
+        const nsp = io.of('/game');
+        const roomName = `instance:${roomCode}`;
+        nsp.to(roomName).emit('roomClosed', { roomCode });
+        rooms.delete(roomCode);
+        return;
+      }
+      io.of('/game').to(`instance:${roomCode}`).emit('roomState', serializeRoom(room));
+      // remove socket from the room
+      socket.leave(`instance:${roomCode}`);
+    });
+
+    // reset now behaves like close: kick everyone and delete the room
     socket.on('resetRoom', ({ roomCode }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
-      // reset state to lobby, keep players/order
-      room.status = 'lobby';
-      room.discard = [];
-      room.deck = [];
-      room.turnIndex = 0;
-      for (const pid of room.order) {
-        const p = room.players.get(pid);
-        if (p) p.hand = [];
+      const nsp = io.of('/game');
+      const roomName = `instance:${roomCode}`;
+      const sockIds = nsp.adapter.rooms.get(roomName);
+      nsp.to(roomName).emit('roomClosed', { roomCode });
+      if (sockIds) {
+        for (const id of sockIds) {
+          const s = nsp.sockets.get(id);
+          if (s) s.leave(roomName);
+        }
       }
-      io.of('/game').to(`instance:${roomCode}`).emit('roomState', serializeRoom(room));
+      rooms.delete(roomCode);
     });
   });
 

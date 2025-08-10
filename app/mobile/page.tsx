@@ -102,6 +102,24 @@ export default function MobilePage() {
     socket.emit("playCard", { roomCode, playerId, cardIndex: idx, chosenColor });
   };
 
+  const leave = () => {
+    if (socket && roomCode) {
+      socket.emit("leaveRoom", { roomCode, playerId });
+    }
+    setJoined(false);
+    setRoom(null);
+    setHand([]);
+    try { localStorage.removeItem("gm.session"); } catch {}
+  };
+
+  const changeRoom = () => {
+    // Reset client state to allow joining a different room; keep name and playerId
+    setJoined(false);
+    setRoom(null);
+    setHand([]);
+    try { localStorage.removeItem("gm.session"); } catch {}
+  };
+
   return (
     <main className="space-y-4">
       <h2 className="text-xl font-semibold">Mobile</h2>
@@ -173,6 +191,8 @@ export default function MobilePage() {
               Draw
             </button>
             <button className="px-4 py-2 rounded bg-slate-600 text-white disabled:opacity-50" disabled={!myTurn} onClick={pass}>Pass</button>
+            <button className="px-4 py-2 rounded bg-amber-600 text-white" onClick={changeRoom}>Change Room</button>
+            <button className="px-4 py-2 rounded bg-red-600 text-white" onClick={leave}>Leave Room</button>
           </div>
         </div>
       )}
