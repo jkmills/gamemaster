@@ -175,8 +175,9 @@ app.prepare().then(() => {
   });
 
   const port = process.env.PORT || 3000;
-  server.listen(port, () => {
-    console.log(`> Ready on http://localhost:${port}`);
+  const host = '0.0.0.0';
+  server.listen(port, host, () => {
+    console.log(`> Ready on http://${host}:${port}`);
   });
 });
 

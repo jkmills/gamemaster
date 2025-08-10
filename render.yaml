@@ -4,13 +4,12 @@ services:
     env: node
     plan: free
     buildCommand: |
-      npm ci --no-audit --no-fund
+      export NPM_CONFIG_PRODUCTION=false
+      npm install --no-audit --no-fund
       npm run build
     startCommand: npm start
     autoDeploy: true
     envVars:
-      - key: NODE_ENV
-        value: production
       - key: SESSION_COOKIE_SECRET
         generateValue: true
     # Render provides PORT automatically; server.js reads process.env.PORT
