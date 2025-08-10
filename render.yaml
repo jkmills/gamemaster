@@ -13,10 +13,6 @@ services:
         value: production
       - key: SESSION_COOKIE_SECRET
         generateValue: true
-      # Render provides PORT automatically; server.js reads process.env.PORT
+    # Render provides PORT automatically; server.js reads process.env.PORT
     healthCheckPath: /
-    headers:
-      - path: /*
-        name: Cache-Control
-        value: no-store
     pullRequestPreviewsEnabled: false
