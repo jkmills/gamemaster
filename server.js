@@ -117,9 +117,15 @@ app.prepare().then(() => {
 
     socket.on('drawCard', ({ roomCode, playerId }) => {
       const room = rooms.get(roomCode);
-      if (!room || room.status !== 'active') return;
+      if (!room || room.status !== 'active') {
+        socket.emit('error', { message: 'Cannot draw: game not active' });
+        return;
+      }
       const currentPlayer = room.order[room.turnIndex];
-      if (currentPlayer !== playerId) return;
+      if (currentPlayer !== playerId) {
+        socket.emit('error', { message: 'Not your turn' });
+        return;
+      }
       const p = room.players.get(playerId);
       if (room.deck.length) {
         p.hand.push(room.deck.shift());
@@ -171,6 +177,22 @@ app.prepare().then(() => {
       const p = room.players.get(playerId);
       if (!p) return;
       socket.emit('playerHand', { hand: p.hand });
+    });
+
+    // reset/cancel the game but keep players
+    socket.on('resetRoom', ({ roomCode }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      // reset state to lobby, keep players/order
+      room.status = 'lobby';
+      room.discard = [];
+      room.deck = [];
+      room.turnIndex = 0;
+      for (const pid of room.order) {
+        const p = room.players.get(pid);
+        if (p) p.hand = [];
+      }
+      io.of('/game').to(`instance:${roomCode}`).emit('roomState', serializeRoom(room));
     });
   });
 

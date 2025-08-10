@@ -64,6 +64,17 @@ export default function TablePage() {
         >
           Start Game
         </button>
+        <button
+          className="px-4 py-2 rounded bg-red-600 text-white disabled:opacity-50"
+          disabled={!socket || !roomCode}
+          onClick={() => {
+            if (confirm("Reset this room? All hands and state will be cleared.")) {
+              socket?.emit("resetRoom", { roomCode });
+            }
+          }}
+        >
+          Reset Room
+        </button>
       </div>
 
       <section className="mt-4 border rounded p-4">

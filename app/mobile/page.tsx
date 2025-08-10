@@ -24,12 +24,30 @@ export default function MobilePage() {
   const [room, setRoom] = useState<RoomState | null>(null);
 
   useEffect(() => {
+    // hydrate from localStorage
+    try {
+      const saved = JSON.parse(localStorage.getItem("gm.session") || "null");
+      if (saved && saved.playerId && saved.roomCode) {
+        setPlayerId(saved.playerId);
+        setRoomCode(saved.roomCode);
+        if (saved.name) setName(saved.name);
+        if (saved.joined) setJoined(true);
+      }
+    } catch {}
+
     const s = io("/game", { path: "/socket.io" });
     setSocket(s);
     s.on("roomState", (state: RoomState) => setRoom(state));
     s.on("playerHand", (p: { hand: string[] }) => setHand(p.hand));
     s.on("error", (e: { message?: string }) => {
       if (e && e.message) alert(e.message);
+    });
+    s.on("connect", () => {
+      // auto rejoin and fetch hand if we have a session
+      if (joined && roomCode && playerId && name) {
+        s.emit("joinRoom", { roomCode, playerId, name });
+        s.emit("getHand", { roomCode, playerId });
+      }
     });
     s.on("connect_error", (e) => console.error(e));
     return () => {
@@ -44,8 +62,18 @@ export default function MobilePage() {
 
   const join = () => {
     if (!socket || !roomCode || !name) return;
-    socket.emit("joinRoom", { roomCode: roomCode.trim().toUpperCase(), playerId, name: name.trim() });
+    const normalized = roomCode.trim().toUpperCase();
+    const trimmedName = name.trim();
+    setRoomCode(normalized); // ensure subsequent emits match server room key
+    socket.emit("joinRoom", { roomCode: normalized, playerId, name: trimmedName });
     setJoined(true);
+    // persist session
+    try {
+      localStorage.setItem(
+        "gm.session",
+        JSON.stringify({ roomCode: normalized, playerId, name: trimmedName, joined: true })
+      );
+    } catch {}
   };
 
   const draw = () => socket?.emit("drawCard", { roomCode, playerId });
@@ -110,7 +138,18 @@ export default function MobilePage() {
           </div>
 
           <div className="flex gap-2">
-            <button className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-50" disabled={!myTurn} onClick={draw}>Draw</button>
+            <button
+              className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-50"
+              disabled={!socket || !roomCode}
+              onClick={() => {
+                if (!myTurn) {
+                  alert("Not your turn");
+                }
+                draw();
+              }}
+            >
+              Draw
+            </button>
             <button className="px-4 py-2 rounded bg-slate-600 text-white disabled:opacity-50" disabled={!myTurn} onClick={pass}>Pass</button>
           </div>
         </div>

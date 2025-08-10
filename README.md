@@ -41,8 +41,8 @@ Steps:
    - Build: `npm ci && npm run build`
    - Start: `npm start` (runs `node server.js`)
 5) After deploy:
-   - https://<your-service>.onrender.com/table
-   - https://<your-service>.onrender.com/mobile
+   - https://gamemaster-mvp.onrender.com/table
+   - https://gamemaster-mvp.onrender.com/mobile
 
 Notes:
 - WebSockets are supported on Render by default.
