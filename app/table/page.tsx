@@ -11,9 +11,12 @@ type RoomState = {
   winner: string | null;
 };
 
+type GameInfo = { id: string; name: string };
+
 export default function TablePage() {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [roomCode, setRoomCode] = useState("");
+  const [gameId, setGameId] = useState<string>("uno");
   const [room, setRoom] = useState<RoomState | null>(null);
 
   useEffect(() => {
@@ -48,10 +51,21 @@ export default function TablePage() {
             onChange={(e) => setRoomCode(e.target.value.trim().toUpperCase())}
           />
         </label>
+        <label className="block">
+          <span className="text-sm">Game</span>
+          <select
+            className="block mt-1 border rounded px-3 py-2 bg-white/80 dark:bg-black/20"
+            value={gameId}
+            onChange={(e) => setGameId(e.target.value)}
+          >
+            <option value="uno">Uno (MVP)</option>
+            <option value="flip7">Flip7 (MVP Stub)</option>
+          </select>
+        </label>
         <button
           className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-50"
           disabled={!roomCode || !socket}
-          onClick={() => socket?.emit("createLobby", { roomCode })}
+          onClick={() => socket?.emit("createLobby", { roomCode, gameId })}
         >
           Create Lobby
         </button>

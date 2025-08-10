@@ -8,10 +8,20 @@ function randomId() {
 
 type RoomState = {
   code: string;
-  status: "lobby" | "active";
+  gameId?: string;
+  status: "lobby" | "active" | "finished";
   discardTop: string | null;
   playerCounts: { id: string; name: string; count: number }[];
   turn: string | null;
+  winner?: string | null;
+  flip7?: {
+    scores: { id: string; name: string; score: number }[];
+    roundScore: { id: string; name: string; score: number }[];
+    stayed: string[];
+    busted: string[];
+    uniquesCount: { id: string; name: string; count: number }[];
+    roundOver: boolean;
+  };
 };
 
 export default function MobilePage() {
@@ -85,6 +95,8 @@ export default function MobilePage() {
 
   const draw = () => socket?.emit("drawCard", { roomCode, playerId });
   const pass = () => socket?.emit("passTurn", { roomCode, playerId });
+  const flip7Hit = () => socket?.emit("flip7:hit", { roomCode, playerId });
+  const flip7Stay = () => socket?.emit("flip7:stay", { roomCode, playerId });
   const play = (idx: number) => {
     if (!socket) return;
     const card = hand[idx];
@@ -156,44 +168,80 @@ export default function MobilePage() {
       ) : (
         <div className="space-y-3">
           <div className="text-sm">Room: <span className="font-mono">{room?.code ?? roomCode}</span></div>
+          <div className="text-sm">Game: {room?.gameId ?? "—"}</div>
           <div className="text-sm">Status: {room?.status ?? "—"}</div>
           <div className="text-sm">Discard Top: <span className="font-mono">{room?.discardTop ?? "—"}</span></div>
           <div className="text-sm">My Turn: {myTurn ? "Yes" : "No"}</div>
 
-          <div>
-            <h3 className="font-medium mb-1">My Hand</h3>
-            <div className="flex flex-wrap gap-2">
-              {hand.map((c, idx) => (
+          {room?.gameId === 'flip7' ? (
+            <>
+              <div>
+                <h3 className="font-medium mb-1">Round</h3>
+                <div className="text-xs">Stayed: {room.flip7?.stayed.join(', ') || '—'}</div>
+                <div className="text-xs">Busted: {room.flip7?.busted.join(', ') || '—'}</div>
+                <div className="mt-1 text-xs">Uniques: {room.flip7?.uniquesCount.map(u => `${u.name}:${u.count}`).join(' | ') || '—'}</div>
+                <div className="mt-1 text-xs">Round Scores: {room.flip7?.roundScore.map(s => `${s.name}:${s.score}`).join(' | ') || '—'}</div>
+                <div className="mt-1 text-xs">Total Scores: {room.flip7?.scores.map(s => `${s.name}:${s.score}`).join(' | ') || '—'}</div>
+              </div>
+              <div className="flex gap-2">
                 <button
-                  key={`${c}-${idx}`}
-                  onClick={() => myTurn && play(idx)}
-                  className={`px-3 py-2 rounded border ${myTurn ? "hover:bg-blue-50 dark:hover:bg-blue-900/30" : "opacity-60 cursor-not-allowed"}`}
-                  disabled={!myTurn}
-                  title={myTurn ? "Play" : "Wait for your turn"}
+                  className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-50"
+                  disabled={!socket || !roomCode || !myTurn}
+                  onClick={() => {
+                    if (!myTurn) { alert('Not your turn'); return; }
+                    flip7Hit();
+                  }}
                 >
-                  {c}
+                  Hit
                 </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-50"
-              disabled={!socket || !roomCode}
-              onClick={() => {
-                if (!myTurn) {
-                  alert("Not your turn");
-                }
-                draw();
-              }}
-            >
-              Draw
-            </button>
-            <button className="px-4 py-2 rounded bg-slate-600 text-white disabled:opacity-50" disabled={!myTurn} onClick={pass}>Pass</button>
-            <button className="px-4 py-2 rounded bg-amber-600 text-white" onClick={changeRoom}>Change Room</button>
-            <button className="px-4 py-2 rounded bg-red-600 text-white" onClick={leave}>Leave Room</button>
-          </div>
+                <button
+                  className="px-4 py-2 rounded bg-slate-600 text-white disabled:opacity-50"
+                  disabled={!myTurn}
+                  onClick={() => flip7Stay()}
+                >
+                  Stay
+                </button>
+                <button className="px-4 py-2 rounded bg-amber-600 text-white" onClick={changeRoom}>Change Room</button>
+                <button className="px-4 py-2 rounded bg-red-600 text-white" onClick={leave}>Leave Room</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <h3 className="font-medium mb-1">My Hand</h3>
+                <div className="flex flex-wrap gap-2">
+                  {hand.map((c, idx) => (
+                    <button
+                      key={`${c}-${idx}`}
+                      onClick={() => myTurn && play(idx)}
+                      className={`px-3 py-2 rounded border ${myTurn ? "hover:bg-blue-50 dark:hover:bg-blue-900/30" : "opacity-60 cursor-not-allowed"}`}
+                      disabled={!myTurn}
+                      title={myTurn ? "Play" : "Wait for your turn"}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-50"
+                  disabled={!socket || !roomCode}
+                  onClick={() => {
+                    if (!myTurn) {
+                      alert("Not your turn");
+                    }
+                    draw();
+                  }}
+                >
+                  Draw
+                </button>
+                <button className="px-4 py-2 rounded bg-slate-600 text-white disabled:opacity-50" disabled={!myTurn} onClick={pass}>Pass</button>
+                <button className="px-4 py-2 rounded bg-amber-600 text-white" onClick={changeRoom}>Change Room</button>
+                <button className="px-4 py-2 rounded bg-red-600 text-white" onClick={leave}>Leave Room</button>
+              </div>
+            </>
+          )}
         </div>
       )}
     </main>
