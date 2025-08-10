@@ -12,6 +12,23 @@
 
 ---
 
+## Phase 0-Lite Plan (MVP)
+
+This section supersedes sections 2, 3, 6, 7, 8, 9, 10, 12, and 20 for the MVP only. The original content remains as Phase 1+ reference.
+
+- Single app: Next.js 14 (App Router) with UI, API routes, and Socket.IO in one deploy. No monorepo or separate apps.
+- No DB in Phase 0: in-memory room/match store on the server. Optional JSON snapshot to disk in local dev.
+- Hardcode Uno-like template in code; defer Admin JSON editor and settings UI.
+- Two surfaces only: Table (create lobby, lobby, start, table state) and Mobile (join and play). Fold Admin actions into Table.
+- Minimal auth: non-guessable room code (8–10 chars base32) + signed cookie for player identity. No admin password.
+- Socket.IO contract kept minimal: joinRoom, startGame, drawCard, playCard, passTurn, roomState, error. Drop presence and strong reconnect guarantees for MVP.
+- Rules: color/number match + Wild only. No Skip/Reverse/Draw2 in Phase 0. Deterministic deck via seedrandom server-side.
+- Testing: unit tests for rules (deck determinism, legal move, apply action). Manual smoke script for end-to-end.
+- CI/CD: single job (install, lint, typecheck, unit tests, build, deploy single app). No E2E in CI. One host (Railway/Render or Vercel with custom server).
+- Timeline: 3 days total. Day 1 scaffold + sockets + room store. Day 2 rules + UIs. Day 3 tests + smoke + deploy.
+
+---
+
 ## 1) Definition of Done (Phase 0)
 
 - Players join via 6-character room code, set a display name, and enter the lobby.
