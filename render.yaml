@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: gamemaster-mvp
+    env: node
+    plan: free
+    buildCommand: |
+      npm ci --no-audit --no-fund
+      npm run build
+    startCommand: npm start
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SESSION_COOKIE_SECRET
+        generateValue: true
+      - key: PUBLIC_BASE_URL
+        fromService: true
+        name: gamemaster-mvp
+        type: web
+      # Render provides PORT automatically; server.js reads process.env.PORT
+    healthCheckPath: /
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-store
+    allowDeploys: true
+    pullRequestPreviewsEnabled: false
