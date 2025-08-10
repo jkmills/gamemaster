@@ -63,6 +63,25 @@ app.prepare().then(() => {
       io.of('/game').to(`instance:${roomCode}`).emit('roomState', serializeRoom(room));
     });
 
+    // close/delete the room and kick all clients
+    socket.on('closeRoom', ({ roomCode }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const nsp = io.of('/game');
+      const roomName = `instance:${roomCode}`;
+      const sockIds = nsp.adapter.rooms.get(roomName);
+      // notify clients the room is closed
+      nsp.to(roomName).emit('roomClosed', { roomCode });
+      // make all sockets leave the room
+      if (sockIds) {
+        for (const id of sockIds) {
+          const s = nsp.sockets.get(id);
+          if (s) s.leave(roomName);
+        }
+      }
+      rooms.delete(roomCode);
+    });
+
     // Join room as a non-playing observer (e.g., Table)
     socket.on('watchRoom', ({ roomCode }) => {
       if (!roomCode) return;
@@ -102,6 +121,10 @@ app.prepare().then(() => {
       const room = rooms.get(roomCode);
       if (!room) return;
       if (room.status !== 'lobby') return;
+      if (room.order.length < 2) {
+        socket.emit('error', { message: 'Need at least 2 players to start' });
+        return;
+      }
       // Minimal deck for MVP demo
       room.deck = makeDemoDeck();
       // deal 3 cards to each player for MVP
@@ -145,7 +168,7 @@ app.prepare().then(() => {
       io.of('/game').to(`instance:${roomCode}`).emit('roomState', serializeRoom(room));
     });
 
-    socket.on('playCard', ({ roomCode, playerId, cardIndex }) => {
+    socket.on('playCard', ({ roomCode, playerId, cardIndex, chosenColor }) => {
       const room = rooms.get(roomCode);
       if (!room || room.status !== 'active') return;
       const currentPlayer = room.order[room.turnIndex];
@@ -155,19 +178,27 @@ app.prepare().then(() => {
       const card = p.hand.splice(cardIndex, 1)[0];
       // Validate play against discard top
       const top = room.discard[0] || null;
-      if (!isLegalPlay(card, top)) {
+      if (!isLegalPlay(card, top, chosenColor)) {
         // put card back in hand at original position and notify error
         p.hand.splice(cardIndex, 0, card);
         socket.emit('error', { message: `Illegal play: ${card} on ${top ?? '∅'}` });
         return;
       }
-      room.discard.unshift(card);
+      // If this is a Wild, encode the chosen color e.g. 'WR'
+      const played = card === 'W' && chosenColor ? (`W${chosenColor}`) : card;
+      room.discard.unshift(played);
       // advance turn
       room.turnIndex = (room.turnIndex + 1) % room.order.length;
       io.of('/game').to(`instance:${roomCode}`).emit('roomState', serializeRoom(room));
       // update private hand
       const target = findSocketByPlayer(io, roomCode, playerId);
       if (target) target.emit('playerHand', { hand: p.hand });
+      // win check
+      if (p.hand.length === 0) {
+        room.status = 'finished';
+        room.winner = playerId;
+        io.of('/game').to(`instance:${roomCode}`).emit('roomState', serializeRoom(room));
+      }
     });
 
     // allow client to request current hand on reload
@@ -210,17 +241,29 @@ function serializeRoom(room) {
     discardTop: room.discard[0] || null,
     playerCounts: Array.from(room.players.entries()).map(([id, p]) => ({ id, name: p.name, count: p.hand.length })),
     turn: room.order[room.turnIndex] || null,
+    winner: room.winner || null,
   };
 }
 
-// Card encoding for MVP: `${Color}${Number}` like 'R3', 'G0', etc. Wild is 'W'
-function isLegalPlay(card, top) {
+// Card encoding for MVP: `${Color}${Number}` like 'R3', 'G0', etc. Wild is 'W'.
+// Wild with chosen color is encoded as 'WR', 'WG', 'WB', 'WY'.
+function isLegalPlay(card, top, chosenColor) {
   if (!top) return true; // any card can start
-  if (card === 'W') return true; // wild always legal
-  if (top === 'W') return true; // any card can follow wild
+  // If playing a Wild, chosenColor must be valid
+  if (card === 'W') {
+    if (!['R','G','B','Y'].includes(chosenColor || '')) return false;
+    return true;
+  }
+  // interpret top color/number
+  const tIsWild = top && top[0] === 'W';
   const cColor = card[0];
-  const tColor = top[0];
   const cNum = card.slice(1);
+  if (tIsWild) {
+    const tChosen = top[1]; // may be undefined if plain 'W'
+    if (!tChosen) return true; // plain wild allows any card
+    return cColor === tChosen;
+  }
+  const tColor = top[0];
   const tNum = top.slice(1);
   return cColor === tColor || cNum === tNum;
 }

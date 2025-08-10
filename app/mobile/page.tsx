@@ -50,6 +50,13 @@ export default function MobilePage() {
       }
     });
     s.on("connect_error", (e) => console.error(e));
+    s.on("roomClosed", ({ roomCode: rc }: { roomCode: string }) => {
+      alert(`Room ${rc} was closed.`);
+      setJoined(false);
+      setRoom(null);
+      setHand([]);
+      try { localStorage.removeItem('gm.session'); } catch {}
+    });
     return () => {
       s.disconnect();
     };
@@ -78,7 +85,22 @@ export default function MobilePage() {
 
   const draw = () => socket?.emit("drawCard", { roomCode, playerId });
   const pass = () => socket?.emit("passTurn", { roomCode, playerId });
-  const play = (idx: number) => socket?.emit("playCard", { roomCode, playerId, cardIndex: idx });
+  const play = (idx: number) => {
+    if (!socket) return;
+    const card = hand[idx];
+    let chosenColor: string | undefined = undefined;
+    if (card === 'W') {
+      const picked = prompt('Choose color: R, G, B, or Y', 'R');
+      const c = (picked || '').trim().toUpperCase()[0];
+      if (c && ['R','G','B','Y'].includes(c)) {
+        chosenColor = c;
+      } else {
+        alert('Invalid color. Play canceled.');
+        return;
+      }
+    }
+    socket.emit("playCard", { roomCode, playerId, cardIndex: idx, chosenColor });
+  };
 
   return (
     <main className="space-y-4">
