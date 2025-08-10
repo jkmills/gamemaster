@@ -70,7 +70,7 @@ export default function MobilePage() {
   const [room, setRoom] = useState<RoomState | null>(null);
 
   useEffect(() => {
-    // hydrate from localStorage
+    // hydrate from localStorage and URL (?code=...)
     try {
       const saved = JSON.parse(localStorage.getItem("gm.session") || "null");
       if (saved && saved.playerId && saved.roomCode) {
@@ -79,11 +79,27 @@ export default function MobilePage() {
         if (saved.name) setName(saved.name);
         if (saved.joined) setJoined(true);
       }
+      // allow QR prefill
+      const params = new URLSearchParams(window.location.search);
+      const qrCode = params.get('code');
+      if (qrCode && !saved?.roomCode) {
+        setRoomCode(qrCode.toUpperCase());
+      }
     } catch {}
 
     const s = io("/game", { path: "/socket.io" });
     setSocket(s);
-    s.on("roomState", (state: RoomState) => setRoom(state));
+    s.on("roomState", (state: RoomState) => {
+      setRoom(state);
+      // ensure hand stays in sync after refresh/reconnect
+      try {
+        const saved = JSON.parse(localStorage.getItem("gm.session") || "null");
+        const pid = saved?.playerId || playerId;
+        if (saved?.joined && pid && state?.code) {
+          s.emit("getHand", { roomCode: state.code, playerId: pid });
+        }
+      } catch {}
+    });
     s.on("playerHand", (p: { hand: string[] }) => setHand(p.hand));
     s.on("notice", (n: { message?: string }) => {
       if (n?.message) alert(n.message);
@@ -92,11 +108,14 @@ export default function MobilePage() {
       if (e && e.message) alert(e.message);
     });
     s.on("connect", () => {
-      // auto rejoin and fetch hand if we have a session
-      if (joined && roomCode && playerId && name) {
-        s.emit("joinRoom", { roomCode, playerId, name });
-        s.emit("getHand", { roomCode, playerId });
-      }
+      // auto rejoin and fetch hand using latest persisted session (avoid stale closures)
+      try {
+        const saved = JSON.parse(localStorage.getItem("gm.session") || "null");
+        if (saved && saved.joined && saved.roomCode && saved.playerId && saved.name) {
+          s.emit("joinRoom", { roomCode: saved.roomCode, playerId: saved.playerId, name: saved.name });
+          s.emit("getHand", { roomCode: saved.roomCode, playerId: saved.playerId });
+        }
+      } catch {}
     });
     s.on("connect_error", (e) => console.error(e));
     s.on("roomClosed", ({ roomCode: rc }: { roomCode: string }) => {
@@ -110,6 +129,17 @@ export default function MobilePage() {
       s.disconnect();
     };
   }, []);
+
+  // Warn before accidental tab close/refresh while joined
+  useEffect(() => {
+    if (!joined) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [joined]);
 
   const myTurn = useMemo(() => {
     if (!room) return false;
@@ -270,7 +300,7 @@ export default function MobilePage() {
             </>
           ) : (
             <>
-              <div className={myTurn ? "p-2 rounded ring-2 ring-emerald-500/70 shadow animate-pulse" : ""}>
+              <div>
                 <h3 className="font-medium mb-1">My Hand</h3>
                 <div className="flex flex-wrap gap-3">
                   {hand.map((c, idx) => (
