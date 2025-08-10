@@ -193,6 +193,14 @@ app.prepare().then(() => {
         room.status = 'active';
         room.turnIndex = 0;
       }
+      // Emit any Uno notices generated during start (e.g., start-card +2/+4)
+      if (room._unoNotices && Array.isArray(room._unoNotices)) {
+        for (const n of room._unoNotices) {
+          const target = findSocketByPlayer(io, roomCode, n.playerId);
+          if (target && n.message) target.emit('notice', { message: n.message });
+        }
+        room._unoNotices = [];
+      }
       // Flip7 per-round state (Phase 1 core) – only when selected
       if (room.gameId === 'flip7') {
         room.flip7 = room.flip7 || {};
@@ -272,6 +280,13 @@ app.prepare().then(() => {
         if (!res?.ok) {
           socket.emit('error', { message: res?.error || 'Illegal play' });
           return;
+        }
+        // forward any per-player notices (e.g., +2/+4 effects)
+        if (Array.isArray(res.notices)) {
+          for (const n of res.notices) {
+            const target = findSocketByPlayer(io, roomCode, n.playerId);
+            if (target && n.message) target.emit('notice', { message: n.message });
+          }
         }
       } else {
         if (cardIndex < 0 || cardIndex >= p.hand.length) return;

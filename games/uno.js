@@ -48,6 +48,7 @@ function drawOne(room) {
 function start(room) {
   room.deck = buildDeck();
   room.direction = 1; // 1=clockwise, -1=counter-clockwise
+  room._unoNotices = []; // transient notices to emit after start
   // Deal 7 to each
   for (const pid of room.order) {
     const p = room.players.get(pid);
@@ -72,6 +73,7 @@ function start(room) {
       // apply +4 to next player and skip
       const next = nextPlayerIndex(room);
       forceDraw(room, room.order[next], 4);
+      pushNotice(room, room.order[next], `You received +4 from start card`);
       room.turnIndex = nextPlayerIndex(room, 2); // skip next
       room.discard.unshift(top);
       room.status = 'active';
@@ -92,6 +94,7 @@ function start(room) {
       } else if (sym === '+2') {
         const next = nextPlayerIndex(room);
         forceDraw(room, room.order[next], 2);
+        pushNotice(room, room.order[next], `You received +2 from start card`);
         room.turnIndex = nextPlayerIndex(room, 2);
       }
     }
@@ -142,6 +145,7 @@ function applyPlay(room, playerId, cardIndex, payload) {
 
   // apply effects
   let skip = 0;
+  const notices = [];
   if (card.endsWith('S')) {
     skip = 1;
   } else if (card.endsWith('RV')) {
@@ -150,22 +154,26 @@ function applyPlay(room, playerId, cardIndex, payload) {
     const next = nextPlayerIndex(room);
     forceDraw(room, room.order[next], 2);
     skip = 1;
+    const actor = room.players.get(playerId)?.name || 'Someone';
+    notices.push({ playerId: room.order[next], message: `${actor} played +2. You drew 2 cards and are skipped.` });
   } else if (card === 'W+4') {
     const next = nextPlayerIndex(room);
     forceDraw(room, room.order[next], 4);
     skip = 1;
+    const actor = room.players.get(playerId)?.name || 'Someone';
+    notices.push({ playerId: room.order[next], message: `${actor} played +4. You drew 4 cards and are skipped.` });
   }
 
   // win check
   if (p.hand.length === 0) {
     room.status = 'finished';
     room.winner = playerId;
-    return { ok: true };
+    return { ok: true, notices };
   }
 
   // advance turn
   room.turnIndex = nextPlayerIndex(room, 1 + skip);
-  return { ok: true };
+  return { ok: true, notices };
 }
 
 function applyDraw(room, playerId) {
@@ -197,6 +205,13 @@ function forceDraw(room, playerId, count) {
     const c = drawOne(room);
     if (c) p.hand.push(c);
   }
+}
+
+function pushNotice(room, playerId, message) {
+  try {
+    if (!room._unoNotices) room._unoNotices = [];
+    room._unoNotices.push({ playerId, message });
+  } catch {}
 }
 
 module.exports = { id, name, start, isLegalPlay, applyPlay, applyDraw, applyPass };

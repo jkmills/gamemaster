@@ -49,6 +49,9 @@ export default function MobilePage() {
     setSocket(s);
     s.on("roomState", (state: RoomState) => setRoom(state));
     s.on("playerHand", (p: { hand: string[] }) => setHand(p.hand));
+    s.on("notice", (n: { message?: string }) => {
+      if (n?.message) alert(n.message);
+    });
     s.on("error", (e: { message?: string }) => {
       if (e && e.message) alert(e.message);
     });
