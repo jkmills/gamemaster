@@ -1,9 +1,44 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { io, Socket } from "socket.io-client";
+import Image from "next/image";
 
 function randomId() {
   return Math.random().toString(36).slice(2, 10).toUpperCase();
+}
+
+function UnoCard({ code }: { code: string }) {
+  const { src, label } = useMemo(() => {
+    const colorKey = code[0];
+    const isWild = colorKey === 'W';
+    const src = isWild
+      ? '/uno/uno_wild.png'
+      : colorKey === 'R'
+      ? '/uno/uno_red.png'
+      : colorKey === 'Y'
+      ? '/uno/uno_yellow.png'
+      : colorKey === 'G'
+      ? '/uno/uno_green.png'
+      : '/uno/uno_blue.png';
+    // Determine label/symbol
+    let body = code.slice(1);
+    // Handle encoded discard wilds like 'WR' or 'W+4R'
+    if (isWild) {
+      if (code.startsWith('W+4')) body = '+4';
+      else body = 'W';
+    } else if (body === 'RV') body = 'Rev';
+    else if (body === 'S') body = 'Skip';
+    const label = body || '';
+    return { src, label };
+  }, [code]);
+  return (
+    <div className="relative w-14 h-20 rounded shadow border overflow-hidden">
+      <Image src={src} alt={code} fill style={{ objectFit: 'cover' }} />
+      <div className="absolute inset-0 flex items-center justify-center text-white font-bold text-base drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]">
+        {label}
+      </div>
+    </div>
+  );
 }
 
 type RoomState = {
@@ -14,6 +49,7 @@ type RoomState = {
   playerCounts: { id: string; name: string; count: number }[];
   turn: string | null;
   winner?: string | null;
+  log?: string[];
   flip7?: {
     scores: { id: string; name: string; score: number }[];
     roundScore: { id: string; name: string; score: number }[];
@@ -104,7 +140,7 @@ export default function MobilePage() {
     if (!socket) return;
     const card = hand[idx];
     let chosenColor: string | undefined = undefined;
-    if (card === 'W') {
+    if (card === 'W' || card === 'W+4') {
       const picked = prompt('Choose color: R, G, B, or Y', 'R');
       const c = (picked || '').trim().toUpperCase()[0];
       if (c && ['R','G','B','Y'].includes(c)) {
@@ -173,8 +209,22 @@ export default function MobilePage() {
           <div className="text-sm">Room: <span className="font-mono">{room?.code ?? roomCode}</span></div>
           <div className="text-sm">Game: {room?.gameId ?? "—"}</div>
           <div className="text-sm">Status: {room?.status ?? "—"}</div>
-          <div className="text-sm">Discard Top: <span className="font-mono">{room?.discardTop ?? "—"}</span></div>
+          <div className="text-sm flex items-center gap-2">Discard Top: <span className="font-mono">{room?.discardTop ?? "—"}</span>
+            {room?.discardTop && (
+              <div className="ml-2"><UnoCard code={room.discardTop} /></div>
+            )}
+          </div>
           <div className="text-sm">My Turn: {myTurn ? "Yes" : "No"}</div>
+          {room?.log && room.log.length > 0 && (
+            <div className="mt-2">
+              <h3 className="font-medium mb-1">Log</h3>
+              <ul className="text-xs space-y-1 max-h-40 overflow-auto border rounded p-2 bg-black/5 dark:bg-white/5">
+                {room.log.map((entry, i) => (
+                  <li key={i} className="font-mono">{entry}</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {room?.gameId === 'flip7' ? (
             <>
@@ -217,11 +267,11 @@ export default function MobilePage() {
                     <button
                       key={`${c}-${idx}`}
                       onClick={() => myTurn && play(idx)}
-                      className={`px-3 py-2 rounded border ${myTurn ? "hover:bg-blue-50 dark:hover:bg-blue-900/30" : "opacity-60 cursor-not-allowed"}`}
+                      className={`rounded ${myTurn ? "" : "opacity-60 cursor-not-allowed"}`}
                       disabled={!myTurn}
                       title={myTurn ? "Play" : "Wait for your turn"}
                     >
-                      {c}
+                      <UnoCard code={c} />
                     </button>
                   ))}
                 </div>

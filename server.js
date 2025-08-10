@@ -12,6 +12,14 @@ const handle = app.getRequestHandler();
 // In-memory store (very simple for MVP)
 const rooms = new Map(); // roomCode -> { seed, status, players: Map<playerId, {name, hand: any[]}> , discard: any[], deck: any[] , turnIndex: number, order: string[] }
 
+function trimLog(room) {
+  try {
+    if (!Array.isArray(room.log)) return;
+    const MAX = 50;
+    if (room.log.length > MAX) room.log = room.log.slice(-MAX);
+  } catch {}
+}
+
 function findSocketByPlayer(io, roomCode, playerId) {
   const nsp = io.of('/game');
   const roomName = `instance:${roomCode}`;
@@ -35,6 +43,7 @@ function makeRoom(code, seed, gameId) {
     deck: [],
     turnIndex: 0,
     order: [],
+    log: [], // gameplay log (temporary, recent entries only)
   };
 }
 
@@ -193,6 +202,8 @@ app.prepare().then(() => {
         room.status = 'active';
         room.turnIndex = 0;
       }
+      // Initialize log
+      if (!Array.isArray(room.log)) room.log = [];
       // Emit any Uno notices generated during start (e.g., start-card +2/+4)
       if (room._unoNotices && Array.isArray(room._unoNotices)) {
         for (const n of room._unoNotices) {
@@ -200,6 +211,12 @@ app.prepare().then(() => {
           if (target && n.message) target.emit('notice', { message: n.message });
         }
         room._unoNotices = [];
+      }
+      // Append any Uno start logs
+      if (room._unoLog && Array.isArray(room._unoLog)) {
+        room.log.push(...room._unoLog);
+        room._unoLog = [];
+        trimLog(room);
       }
       // Flip7 per-round state (Phase 1 core) – only when selected
       if (room.gameId === 'flip7') {
@@ -287,6 +304,13 @@ app.prepare().then(() => {
             const target = findSocketByPlayer(io, roomCode, n.playerId);
             if (target && n.message) target.emit('notice', { message: n.message });
           }
+        }
+        // append log entries
+        const logs = Array.isArray(res.log) ? res.log : (res.logEntry ? [res.logEntry] : []);
+        if (logs.length) {
+          if (!Array.isArray(room.log)) room.log = [];
+          room.log.push(...logs);
+          trimLog(room);
         }
       } else {
         if (cardIndex < 0 || cardIndex >= p.hand.length) return;
@@ -381,6 +405,7 @@ function serializeRoom(room) {
     playerCounts: Array.from(room.players.entries()).map(([id, p]) => ({ id, name: p.name, count: p.hand.length })),
     turn: room.order[room.turnIndex] || null,
     winner: room.winner || null,
+    log: Array.isArray(room.log) ? room.log.slice(-20) : [],
     flip7: room.gameId === 'flip7' && room.flip7 ? serializeFlip7(room) : undefined,
   };
 }
