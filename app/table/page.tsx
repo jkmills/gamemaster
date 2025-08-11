@@ -217,7 +217,7 @@ export default function TablePage() {
   }, [played]);
 
   return (
-    <main className="space-y-4">
+    <main className="table-ui">
       <h2 className="text-xl font-semibold">Table</h2>
       {/* Player anchors around edges instead of turn banner */}
       {room && room.playerCounts?.length > 0 && (
@@ -413,13 +413,24 @@ export default function TablePage() {
             )}
             <div>
               <h4 className="font-medium">Players</h4>
-              <ul className="list-disc ml-6 text-sm">
-                {room.playerCounts.map((p) => (
-                  <li key={p.id}>
-                    {p.name?.slice(0,16)} (<span className="font-mono">{p.id}</span>): {p.count}
-                  </li>
-                ))}
-              </ul>
+              <table className="w-full text-sm mt-2">
+                <thead>
+                  <tr className="text-left">
+                    <th className="p-2">Name</th>
+                    <th className="p-2">ID</th>
+                    <th className="p-2">Cards</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {room.playerCounts.map((p) => (
+                    <tr key={p.id} className="border-t border-white/10">
+                      <td className="p-2">{p.name?.slice(0,16)}</td>
+                      <td className="p-2 font-mono">{p.id}</td>
+                      <td className="p-2">{p.count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
