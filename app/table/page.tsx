@@ -412,7 +412,7 @@ export default function TablePage() {
                   <div ref={discardRef} className="relative w-32 h-48" aria-label={`Discard ${room.discardTop}`}>
                     {Array.from({ length: Math.min(5, room.discardCount) }).map((_, i) => (
                       <div key={i} className="absolute w-full h-full" style={{ transform: `translate(${i*2}px, ${i*1}px)` }}>
-                        <UnoCard code={room.discardTop} />
+                        <UnoCard code={room.discardTop!} />
                       </div>
                     ))}
                   </div>
