@@ -64,23 +64,27 @@ export function Notifications({ children }: { children: ReactNode }) {
 
   const notify = (type: "error" | "notice" | "draw", message: string) => {
     const DURATION = 5000;
-    const canAggregate = type === 'draw' && message.endsWith('drew a card');
+    const normalized = message.trim();
+    const base = normalized.replace(/[.!]$/, "");
+    const canAggregate = type === 'draw' && /drew a card$/i.test(base);
 
-    if (activeAggregate && (!canAggregate || activeAggregate.baseMessage !== message)) {
+    if (activeAggregate && (!canAggregate || activeAggregate.baseMessage !== base)) {
       setActiveAggregate(null);
     }
 
-    if (canAggregate && activeAggregate?.baseMessage === message) {
+    if (canAggregate && activeAggregate?.baseMessage === base) {
       const newCount = activeAggregate.count + 1;
-      const newToastMessage = `${message} (x${newCount})`;
-      setToasts(prev => prev.map(t => t.id === activeAggregate.id ? { ...t, message: newToastMessage } : t));
+      const newToastMessage = `${base} (x${newCount})`;
+      setToasts(prev =>
+        prev.map(t => (t.id === activeAggregate.id ? { ...t, message: newToastMessage } : t))
+      );
       setActiveAggregate(prev => ({ ...prev!, count: newCount }));
       resetToastTimer(activeAggregate.id, DURATION);
     } else {
       const id = Date.now();
-      addToast({ id, type, message }, DURATION);
+      addToast({ id, type, message: canAggregate ? base : normalized }, DURATION);
       if (canAggregate) {
-        setActiveAggregate({ id, baseMessage: message, count: 1 });
+        setActiveAggregate({ id, baseMessage: base, count: 1 });
       }
     }
   };
