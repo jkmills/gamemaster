@@ -75,6 +75,33 @@ app.prepare().then(() => {
       io.of('/game').to(`instance:${roomCode}`).emit('roomState', serializeRoom(room));
     });
 
+    // Restart game with same players/order
+    socket.on('restartGame', ({ roomCode }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const game = games[room.gameId] || {};
+      // reset state while preserving players/order
+      room.discard = [];
+      room.deck = [];
+      room.turnIndex = 0;
+      room.winner = null;
+      room.status = 'lobby';
+      room.log = [];
+      if (typeof game.start === 'function') {
+        game.start(room);
+      } else {
+        room.deck = makeDemoDeck();
+        for (const pid of room.order) {
+          const p = room.players.get(pid);
+          p.hand = room.deck.splice(0, 3);
+        }
+        room.discard = [room.deck.shift()];
+        room.status = 'active';
+        room.turnIndex = 0;
+      }
+      io.of('/game').to(`instance:${roomCode}`).emit('roomState', serializeRoom(room));
+    });
+
     // ==== Flip7 Phase 1: Hit / Stay, bust on duplicate number, 7-unique ends round ====
     socket.on('flip7:hit', ({ roomCode, playerId }) => {
       const room = rooms.get(roomCode);
@@ -312,6 +339,10 @@ app.prepare().then(() => {
           room.log.push(...logs);
           trimLog(room);
         }
+        // broadcast a play animation event with the encoded top card and actor name
+        const actorName = room.players.get(playerId)?.name || playerId;
+        const playedCard = room.discard[0] || null;
+        io.of('/game').to(`instance:${roomCode}`).emit('cardPlayed', { playerId, name: actorName, card: playedCard });
       } else {
         if (cardIndex < 0 || cardIndex >= p.hand.length) return;
         const card = p.hand.splice(cardIndex, 1)[0];

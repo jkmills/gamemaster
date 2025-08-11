@@ -50,11 +50,18 @@ export default function TablePage() {
   const [roomCode, setRoomCode] = useState("");
   const [gameId, setGameId] = useState<string>("uno");
   const [room, setRoom] = useState<RoomState | null>(null);
+  const [played, setPlayed] = useState<{name:string, card:string} | null>(null);
 
   useEffect(() => {
     const s = io("/game", { path: "/socket.io" });
     setSocket(s);
     s.on("roomState", (state: RoomState) => setRoom(state));
+    s.on("cardPlayed", ({ name, card }: { name: string; card: string }) => {
+      if (!card) return;
+      setPlayed({ name, card });
+      // shrink-away after a moment
+      setTimeout(() => setPlayed(null), 1200);
+    });
     s.on("error", (e: { message?: string }) => {
       if (e && e.message) alert(e.message);
     });
@@ -99,7 +106,34 @@ export default function TablePage() {
           <div className="text-center text-white">
             <div className="text-2xl font-semibold">Winner</div>
             <div className="mt-2 text-6xl font-extrabold">{winnerName}</div>
+            <div className="mt-6 flex gap-3 justify-center">
+              <button
+                className="px-4 py-2 rounded bg-blue-600 text-white"
+                onClick={() => room && socket?.emit('restartGame', { roomCode: room.code })}
+              >Play Again</button>
+              <button
+                className="px-4 py-2 rounded bg-red-600 text-white"
+                onClick={() => room && socket?.emit('closeRoom', { roomCode: room.code })}
+              >Close Room</button>
+            </div>
           </div>
+        </div>
+      )}
+      {played && (
+        <div className="fixed inset-0 z-40 pointer-events-none flex items-center justify-center">
+          <div className="animate-[fadeShrink_1.2s_ease_forwards] text-center">
+            <div className="mb-2 text-white text-xl drop-shadow">{played.name} played</div>
+            <div className="inline-block transform origin-center">
+              <UnoCard code={played.card} />
+            </div>
+          </div>
+          <style jsx>{`
+            @keyframes fadeShrink {
+              0% { transform: scale(1); opacity: 1; }
+              70% { transform: scale(0.5); opacity: 0.9; }
+              100% { transform: scale(0.2); opacity: 0; }
+            }
+          `}</style>
         </div>
       )}
       <div className="flex flex-wrap gap-2 items-end">
@@ -120,7 +154,7 @@ export default function TablePage() {
             onChange={(e) => setGameId(e.target.value)}
           >
             <option value="uno">Uno (MVP)</option>
-            <option value="flip7">Flip7 (MVP Stub)</option>
+            {/* Flip7 temporarily disabled */}
           </select>
         </label>
         <button

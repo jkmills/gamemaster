@@ -68,6 +68,7 @@ export default function MobilePage() {
   const [joined, setJoined] = useState(false);
   const [hand, setHand] = useState<string[]>([]);
   const [room, setRoom] = useState<RoomState | null>(null);
+  const [wildPick, setWildPick] = useState<{ index: number } | null>(null);
 
   useEffect(() => {
     // hydrate from localStorage and URL (?code=...)
@@ -174,18 +175,11 @@ export default function MobilePage() {
   const play = (idx: number) => {
     if (!socket) return;
     const card = hand[idx];
-    let chosenColor: string | undefined = undefined;
     if (card === 'W' || card === 'W+4') {
-      const picked = prompt('Choose color: R, G, B, or Y', 'R');
-      const c = (picked || '').trim().toUpperCase()[0];
-      if (c && ['R','G','B','Y'].includes(c)) {
-        chosenColor = c;
-      } else {
-        alert('Invalid color. Play canceled.');
-        return;
-      }
+      setWildPick({ index: idx });
+      return;
     }
-    socket.emit("playCard", { roomCode, playerId, cardIndex: idx, chosenColor });
+    socket.emit("playCard", { roomCode, playerId, cardIndex: idx });
   };
 
   const leave = () => {
@@ -207,18 +201,54 @@ export default function MobilePage() {
   };
 
   return (
-    <main className="space-y-4">
+    <main className={`space-y-4 transition-colors ${myTurn ? 'bg-emerald-50 dark:bg-emerald-900/20 -mx-4 px-4 py-2 rounded' : ''}`}>
       <h2 className="text-xl font-semibold">Mobile</h2>
-      {myTurn && (
-        <div className="rounded bg-emerald-600 text-white px-3 py-2 text-sm font-semibold shadow">
-          Your turn — play a card or draw
-        </div>
-      )}
       {room?.winner && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
           <div className="text-center text-white">
             <div className="text-2xl font-semibold">Winner</div>
             <div className="mt-2 text-4xl sm:text-5xl font-extrabold">{winnerName}</div>
+            <div className="mt-6 flex gap-3 justify-center">
+              <button
+                className="px-4 py-2 rounded bg-blue-600 text-white"
+                onClick={() => room && socket?.emit('restartGame', { roomCode: room.code })}
+              >Play Again</button>
+              <button
+                className="px-4 py-2 rounded bg-red-600 text-white"
+                onClick={leave}
+              >Leave Room</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {wildPick && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60">
+          <div className="rounded-lg shadow border bg-white dark:bg-zinc-900 p-4 w-72">
+            <div className="text-center font-semibold mb-3">Choose Wild Color</div>
+            <div className="grid grid-cols-2 gap-3">
+              {([
+                { c:'R', name:'Red', cls:'bg-red-600' },
+                { c:'G', name:'Green', cls:'bg-green-600' },
+                { c:'B', name:'Blue', cls:'bg-blue-600' },
+                { c:'Y', name:'Yellow', cls:'bg-yellow-500 text-black' },
+              ] as const).map(({c,name,cls}) => (
+                <button
+                  key={c}
+                  className={`px-3 py-3 rounded text-white font-semibold ${cls}`}
+                  onClick={() => {
+                    const idx = wildPick.index;
+                    setWildPick(null);
+                    socket?.emit('playCard', { roomCode, playerId, cardIndex: idx, chosenColor: c });
+                  }}
+                  aria-label={`Choose ${name}`}
+                >{name}</button>
+              ))}
+            </div>
+            <button
+              className="mt-3 w-full px-3 py-2 rounded bg-slate-600 text-white"
+              onClick={() => setWildPick(null)}
+            >Cancel</button>
           </div>
         </div>
       )}
