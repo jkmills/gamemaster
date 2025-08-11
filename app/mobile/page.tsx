@@ -462,7 +462,7 @@ export default function MobilePage() {
       )}
     </main>
     <div className="fixed bottom-0 left-0 right-0 text-[10px] sm:text-xs flex justify-around gap-2 p-1 bg-white/70 dark:bg-black/70">
-      <span>Room: <span className="font-mono">{room?.code ?? roomCode || '—'}</span></span>
+      <span>Room: <span className="font-mono">{(room?.code ?? roomCode) || '—'}</span></span>
       <span>Game: {room?.gameId ?? '—'}</span>
       <span>Status: {room?.status ?? '—'}</span>
       <span>My Turn: {myTurn ? 'Yes' : 'No'}</span>
