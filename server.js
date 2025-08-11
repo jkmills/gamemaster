@@ -299,6 +299,11 @@ app.prepare().then(() => {
       const target = findSocketByPlayer(io, roomCode, playerId);
       const priv = room.players.get(playerId);
       if (target && priv) target.emit('playerHand', { hand: priv.hand });
+      const actorName = room.players.get(playerId)?.name || playerId;
+      if (!Array.isArray(room.log)) room.log = [];
+      room.log.push(`${actorName} drew a card`);
+      trimLog(room);
+      io.of('/game').to(`instance:${roomCode}`).emit('cardDrawn', { playerId, name: actorName });
     });
 
     socket.on('passTurn', ({ roomCode, playerId }) => {

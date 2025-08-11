@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import Image from "next/image";
 import { useNotifications } from "../../components/Notifications";
+import { formatCard, colorName } from "../../games/unoUtils";
 
 function UnoCard({ code }: { code: string }) {
   const { src, label } = useMemo(() => {
@@ -33,6 +34,15 @@ function UnoCard({ code }: { code: string }) {
       </div>
     </div>
   );
+}
+
+function readableCard(code: string) {
+  let name = formatCard(code);
+  if (code.startsWith('W')) {
+    const col = code.replace('W', '').replace('+4', '')[0];
+    if (col) name += ` (${colorName(col)})`;
+  }
+  return name;
 }
 
 type RoomState = {
@@ -66,6 +76,7 @@ export default function TablePage() {
     s.on("roomState", (state: RoomState) => setRoom(state));
     s.on("cardPlayed", ({ playerId, name, card }: { playerId: string; name: string; card: string }) => {
       if (!card) return;
+      notify("draw", `${name.slice(0,16)} played a ${readableCard(card)}`);
       setPlayed({ playerId, name: name.slice(0,16), card });
       // multi-stage: from player anchor -> center (80vh) -> discard
       setPlayedStyle({ opacity: 0 });
@@ -139,6 +150,9 @@ export default function TablePage() {
           });
         });
       }, 50);
+    });
+    s.on("cardDrawn", ({ name }: { playerId: string; name: string }) => {
+      notify("draw", `${name.slice(0,16)} drew a card`);
     });
     s.on("error", (e: { message?: string }) => {
       if (e?.message) notify("error", e.message);
@@ -228,7 +242,7 @@ export default function TablePage() {
                 className={`${common} ${cls}`}
               >
                 <div className={`pointer-events-auto select-none flex flex-col items-center gap-1 ${active ? 'animate-pulse' : ''}`}>
-                  <div className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow ${active ? 'ring-4 ring-emerald-400' : ''} bg-black/40 text-white`}
+                  <div className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow bg-black/40 text-white transition-transform ${active ? 'ring-4 ring-emerald-400 scale-[3]' : ''}`}
                     aria-label={`Player ${p.name?.slice(0,16)}`}
                     title={p.name?.slice(0,16)}
                   >

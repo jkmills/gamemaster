@@ -9,6 +9,8 @@ function pushStartLogs(room, entries) {
   } catch {}
 }
 
+const { formatCard, colorName } = require('./unoUtils');
+
 const id = 'uno';
 const name = 'Uno (Classic)';
 
@@ -44,7 +46,9 @@ function drawOne(room) {
     // reshuffle discards except top
     if ((room.discard?.length || 0) > 1) {
       const top = room.discard[0];
-      const pool = room.discard.slice(1);
+      const pool = room.discard.slice(1).map((c) =>
+        c.startsWith('W') ? (c.startsWith('W+4') ? 'W+4' : 'W') : c
+      );
       shuffle(pool);
       room.deck = pool;
       room.discard = [top];
@@ -76,16 +80,16 @@ function start(room) {
     if (first === 'W') {
       const col = COLORS[Math.floor(Math.random()*COLORS.length)];
       top = `W${col}`; // encode chosen color
-      startLogs.push(`Start card: W → color ${col}`);
+      startLogs.push(`Start card: ${formatCard('W')} → color ${colorName(col)}`);
     } else if (first === 'W+4') {
       const col = COLORS[Math.floor(Math.random()*COLORS.length)];
       top = `W+4${col}`;
       // apply +4 to next player and skip
       const next = nextPlayerIndex(room);
       forceDraw(room, room.order[next], 4);
-      pushNotice(room, room.order[next], `You received +4 from start card`);
+      pushNotice(room, room.order[next], `You received ${formatCard('W+4')} from start card`);
       const nextName = room.players.get(room.order[next])?.name || room.order[next];
-      startLogs.push(`Start card: W+4 → color ${col}; ${nextName} draws 4 and is skipped`);
+      startLogs.push(`Start card: ${formatCard('W+4')} → color ${colorName(col)}; ${nextName} draws 4 and is skipped`);
       room.turnIndex = nextPlayerIndex(room, 2); // skip next
       room.discard.unshift(top);
       room.status = 'active';
@@ -98,23 +102,23 @@ function start(room) {
         // skip next
         room.turnIndex = nextPlayerIndex(room, 1);
         const skipped = room.players.get(room.order[room.turnIndex])?.name || room.order[room.turnIndex];
-        startLogs.push(`Start card: ${first} → ${skipped} is skipped`);
+        startLogs.push(`Start card: ${formatCard(first)} → ${skipped} is skipped`);
       } else if (sym === 'RV') {
         if (room.order.length === 2) {
           // Reverse acts like Skip in 2-player
           room.turnIndex = nextPlayerIndex(room, 1);
           const skipped = room.players.get(room.order[room.turnIndex])?.name || room.order[room.turnIndex];
-          startLogs.push(`Start card: ${first} → acts as Skip; ${skipped} is skipped`);
+          startLogs.push(`Start card: ${formatCard(first)} → acts as Skip; ${skipped} is skipped`);
         } else {
           room.direction = -room.direction;
-          startLogs.push(`Start card: ${first} → direction reversed`);
+          startLogs.push(`Start card: ${formatCard(first)} → direction reversed`);
         }
       } else if (sym === '+2') {
         const next = nextPlayerIndex(room);
         forceDraw(room, room.order[next], 2);
-        pushNotice(room, room.order[next], `You received +2 from start card`);
+        pushNotice(room, room.order[next], `You received ${formatCard(first)} from start card`);
         const nextName = room.players.get(room.order[next])?.name || room.order[next];
-        startLogs.push(`Start card: ${first} → ${nextName} draws 2 and is skipped`);
+        startLogs.push(`Start card: ${formatCard(first)} → ${nextName} draws 2 and is skipped`);
         room.turnIndex = nextPlayerIndex(room, 2);
       }
     }
@@ -160,11 +164,11 @@ function applyPlay(room, playerId, cardIndex, payload) {
   if (card === 'W') {
     const col = (chosenColor && COLORS.includes(chosenColor)) ? chosenColor : COLORS[Math.floor(Math.random()*COLORS.length)];
     encodedTop = `W${col}`;
-    logs.push(`${actor} played W → color ${col}`);
+    logs.push(`${actor} played ${formatCard('W')} → color ${colorName(col)}`);
   } else if (card === 'W+4') {
     const col = (chosenColor && COLORS.includes(chosenColor)) ? chosenColor : COLORS[Math.floor(Math.random()*COLORS.length)];
     encodedTop = `W+4${col}`;
-    logs.push(`${actor} played W+4 → color ${col}`);
+    logs.push(`${actor} played ${formatCard('W+4')} → color ${colorName(col)}`);
   }
   room.discard.unshift(encodedTop);
 
@@ -175,24 +179,24 @@ function applyPlay(room, playerId, cardIndex, payload) {
     skip = 1;
     const skippedId = room.order[nextPlayerIndex(room)];
     const skippedName = room.players.get(skippedId)?.name || skippedId;
-    logs.push(`${actor} played ${card} → ${skippedName} is skipped`);
+    logs.push(`${actor} played ${formatCard(card)} → ${skippedName} is skipped`);
   } else if (card.endsWith('RV')) {
-    if (room.order.length === 2) { skip = 1; logs.push(`${actor} played ${card} → acts as Skip`); }
-    else { room.direction = -room.direction; logs.push(`${actor} played ${card} → direction reversed`); }
+    if (room.order.length === 2) { skip = 1; logs.push(`${actor} played ${formatCard(card)} → acts as Skip`); }
+    else { room.direction = -room.direction; logs.push(`${actor} played ${formatCard(card)} → direction reversed`); }
   } else if (card.endsWith('+2')) {
     const next = nextPlayerIndex(room);
     forceDraw(room, room.order[next], 2);
     skip = 1;
     const tgtName = room.players.get(room.order[next])?.name || room.order[next];
-    notices.push({ playerId: room.order[next], message: `${actor} played +2. You drew 2 cards and are skipped.` });
-    logs.push(`${actor} played +2 → ${tgtName} draws 2 and is skipped`);
+    notices.push({ playerId: room.order[next], message: `${actor} played ${formatCard(card)}. You drew 2 cards and are skipped.` });
+    logs.push(`${actor} played ${formatCard(card)} → ${tgtName} draws 2 and is skipped`);
   } else if (card === 'W+4') {
     const next = nextPlayerIndex(room);
     forceDraw(room, room.order[next], 4);
     skip = 1;
     const tgtName = room.players.get(room.order[next])?.name || room.order[next];
-    notices.push({ playerId: room.order[next], message: `${actor} played +4. You drew 4 cards and are skipped.` });
-    logs.push(`${actor} played W+4 → ${tgtName} draws 4 and is skipped`);
+    notices.push({ playerId: room.order[next], message: `${actor} played ${formatCard(card)}. You drew 4 cards and are skipped.` });
+    logs.push(`${actor} played ${formatCard(card)} → ${tgtName} draws 4 and is skipped`);
   }
 
   // win check

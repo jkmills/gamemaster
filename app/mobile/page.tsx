@@ -8,7 +8,7 @@ function randomId() {
   return Math.random().toString(36).slice(2, 10).toUpperCase();
 }
 
-function UnoCard({ code }: { code: string }) {
+function UnoCard({ code, large = false }: { code: string; large?: boolean }) {
   const { src, label } = useMemo(() => {
     const colorKey = code[0];
     const isWild = colorKey === 'W';
@@ -33,7 +33,7 @@ function UnoCard({ code }: { code: string }) {
     return { src, label };
   }, [code]);
   return (
-    <div className="relative w-14 h-20 rounded shadow border overflow-hidden">
+    <div className={`relative ${large ? 'w-28 h-40' : 'w-14 h-20'} rounded shadow border overflow-hidden`}>
       <Image src={src} alt={code} fill style={{ objectFit: 'cover' }} />
       <div className="absolute inset-0 flex items-center justify-center text-white font-bold text-base drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]">
         {label}
@@ -350,12 +350,12 @@ export default function MobilePage() {
         <div className="text-sm flex items-center gap-2">Discard Top: <span className="font-mono">{room?.discardTop ?? "—"}</span>
           {room?.discardTop && (
             <div className="ml-2 flex flex-col items-center" aria-label={`Discard ${room.discardTop}`}>
-              <UnoCard code={room.discardTop} />
+              <UnoCard code={room.discardTop} large />
               <div className="mt-1 text-[10px] leading-none font-mono text-gray-700 dark:text-gray-300" aria-hidden>
                 {room.discardTop}
               </div>
-              </div>
-            )}
+            </div>
+          )}
           </div>
           <div className="text-sm">My Turn: {myTurn ? "Yes" : "No"}</div>
           {room?.log && room.log.length > 0 && (
