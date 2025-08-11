@@ -166,6 +166,26 @@ export default function MobilePage() {
     return () => window.removeEventListener('beforeunload', handler);
   }, [joined]);
 
+  // Keep device awake during play
+  useEffect(() => {
+    if (!joined) return;
+    let wakeLock: any = null;
+    const request = async () => {
+      try {
+        wakeLock = await (navigator as any).wakeLock?.request('screen');
+      } catch {}
+    };
+    request();
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') request();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      try { wakeLock?.release?.(); } catch {}
+    };
+  }, [joined]);
+
   const myTurn = useMemo(() => {
     if (!room) return false;
     return room.turn === playerId;
@@ -227,7 +247,7 @@ export default function MobilePage() {
   };
 
   return (
-    <main className={`space-y-4 transition-colors ${myTurn ? 'bg-emerald-200 dark:bg-emerald-800/50 ring-4 ring-emerald-500 -mx-4 px-4 py-2 rounded' : ''}`}>
+    <main className={`space-y-4 transition-colors ${myTurn ? 'bg-emerald-300 dark:bg-emerald-700 ring-8 ring-emerald-500 -mx-4 px-4 py-2 rounded shadow-xl' : ''}`}>
       {joined && (
         <button
           className={`fixed top-2 right-2 z-50 p-2 rounded-full bg-white/80 dark:bg-black/40 ${showPlayable ? 'text-emerald-600' : ''}`}

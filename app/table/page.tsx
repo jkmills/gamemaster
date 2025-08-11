@@ -70,6 +70,19 @@ export default function TablePage() {
   const playedRef = useRef<HTMLDivElement | null>(null);
   const playerAnchorsRef = useRef<Map<string, HTMLDivElement>>(new Map());
   const pendingPlayerRef = useRef<string | null>(null);
+  const pendingRoomRef = useRef<RoomState | null>(null);
+  const animatingRef = useRef(false);
+
+  const finishAnimation = () => {
+    setPlayed(null);
+    setPlayedStyle(undefined);
+    pendingPlayerRef.current = null;
+    animatingRef.current = false;
+    if (pendingRoomRef.current) {
+      setRoom(pendingRoomRef.current);
+      pendingRoomRef.current = null;
+    }
+  };
   const runPlayedAnimation = (playerId: string) => {
     setTimeout(() => {
       const ov = playedRef.current?.getBoundingClientRect();
@@ -78,7 +91,7 @@ export default function TablePage() {
         const dst = discardRef.current?.getBoundingClientRect();
         if (!ov || !dst) {
           setPlayedStyle({ opacity: 0, transition: 'opacity 900ms ease-in-out' });
-          setTimeout(() => { setPlayed(null); setPlayedStyle(undefined); pendingPlayerRef.current = null; }, 950);
+          setTimeout(finishAnimation, 950);
           return;
         }
         const ovCx = ov.left + ov.width / 2;
@@ -97,7 +110,7 @@ export default function TablePage() {
               transition: 'transform 900ms ease-in-out, opacity 900ms ease-in-out',
               willChange: 'transform, opacity',
             });
-            setTimeout(() => { setPlayed(null); setPlayedStyle(undefined); pendingPlayerRef.current = null; }, 950);
+            setTimeout(finishAnimation, 950);
           });
         });
         return;
@@ -117,7 +130,7 @@ export default function TablePage() {
             const dst = discardRef.current?.getBoundingClientRect();
             if (!nowOv || !dst) {
               setPlayedStyle({ opacity: 0, transition: 'opacity 900ms ease-in-out' });
-              setTimeout(() => { setPlayed(null); setPlayedStyle(undefined); pendingPlayerRef.current = null; }, 950);
+              setTimeout(finishAnimation, 950);
               return;
             }
             const nowCx = nowOv.left + nowOv.width / 2;
@@ -133,7 +146,7 @@ export default function TablePage() {
               transition: 'transform 900ms ease-in-out, opacity 900ms ease-in-out',
               willChange: 'transform, opacity',
             });
-            setTimeout(() => { setPlayed(null); setPlayedStyle(undefined); pendingPlayerRef.current = null; }, 950);
+            setTimeout(finishAnimation, 950);
           }, 600);
         });
       });
@@ -149,16 +162,21 @@ export default function TablePage() {
   useEffect(() => {
     const s = io("/game", { path: "/socket.io" });
     setSocket(s);
-    s.on("roomState", (state: RoomState) => setRoom(state));
+    s.on("roomState", (state: RoomState) => {
+      if (animatingRef.current) pendingRoomRef.current = state;
+      else setRoom(state);
+    });
     s.on("cardPlayed", ({ playerId, name, card }: { playerId: string; name: string; card: string }) => {
       if (!card) return;
       notify("draw", `${name.slice(0,16)} played a ${readableCard(card)}`);
       setPlayed({ playerId, name: name.slice(0,16), card });
       setPlayedStyle({ opacity: 0 });
       pendingPlayerRef.current = playerId;
+      animatingRef.current = true;
     });
-    s.on("cardDrawn", ({ name }: { playerId: string; name: string }) => {
-      notify("draw", `${name.slice(0,16)} drew a card`);
+    s.on("game-event", ({ message }: { message: string }) => {
+      if (/drew a card/i.test(message)) notify("draw", message);
+      else notify("notice", message);
     });
     s.on("error", (e: { message?: string }) => {
       if (e?.message) notify("error", e.message);
