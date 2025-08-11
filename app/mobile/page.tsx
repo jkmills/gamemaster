@@ -81,7 +81,7 @@ export default function MobilePage() {
       if (saved && saved.playerId && saved.roomCode) {
         setPlayerId(saved.playerId);
         setRoomCode(saved.roomCode);
-        if (saved.name) setName(saved.name);
+        if (saved.name) setName(saved.name.slice(0,16));
         if (saved.joined) setJoined(true);
         if (saved.avatar) setAvatar(saved.avatar);
       }
@@ -118,7 +118,7 @@ export default function MobilePage() {
       try {
         const saved = JSON.parse(localStorage.getItem("gm.session") || "null");
         if (saved && saved.joined && saved.roomCode && saved.playerId && saved.name) {
-          s.emit("joinRoom", { roomCode: saved.roomCode, playerId: saved.playerId, name: saved.name, avatar: saved.avatar });
+          s.emit("joinRoom", { roomCode: saved.roomCode, playerId: saved.playerId, name: saved.name.slice(0,16), avatar: saved.avatar });
           s.emit("getHand", { roomCode: saved.roomCode, playerId: saved.playerId });
         }
       } catch {}
@@ -160,7 +160,7 @@ export default function MobilePage() {
   const join = () => {
     if (!socket || !roomCode || !name) return;
     const normalized = roomCode.trim().toUpperCase();
-    const trimmedName = name.trim();
+    const trimmedName = name.trim().slice(0,16);
     setRoomCode(normalized); // ensure subsequent emits match server room key
     socket.emit("joinRoom", { roomCode: normalized, playerId, name: trimmedName, avatar });
     setJoined(true);
@@ -168,7 +168,7 @@ export default function MobilePage() {
     try {
       localStorage.setItem(
         "gm.session",
-        JSON.stringify({ roomCode: normalized, playerId, name: trimmedName, avatar, joined: true })
+    JSON.stringify({ roomCode: normalized, playerId, name: trimmedName, avatar, joined: true })
       );
     } catch {}
   };
@@ -208,7 +208,7 @@ export default function MobilePage() {
   };
 
   return (
-    <main className={`space-y-4 transition-colors ${myTurn ? 'bg-emerald-50 dark:bg-emerald-900/20 -mx-4 px-4 py-2 rounded' : ''}`}>
+    <main className={`space-y-4 transition-colors ${myTurn ? 'bg-emerald-200 dark:bg-emerald-800/50 ring-4 ring-emerald-500 -mx-4 px-4 py-2 rounded' : ''}`}>
       <h2 className="text-xl font-semibold">Mobile</h2>
       {room?.winner && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
@@ -278,7 +278,8 @@ export default function MobilePage() {
             className="block mt-1 border rounded px-3 py-2 w-full bg-white/80 dark:bg-black/20"
             placeholder="e.g. Alex"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            maxLength={16}
+            onChange={(e) => setName(e.target.value.slice(0,16))}
           />
         </label>
         <div>
@@ -288,7 +289,7 @@ export default function MobilePage() {
               <button
                 key={a}
                 type="button"
-                className={`h-10 w-10 rounded-full flex items-center justify-center text-xl shadow border ${avatar === a ? 'ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-900/30' : 'bg-white/80 dark:bg-black/20'}`}
+                className={`h-12 w-12 rounded-full flex items-center justify-center text-2xl shadow border ${avatar === a ? 'ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-900/30' : 'bg-white/80 dark:bg-black/20'}`}
                 onClick={() => setAvatar(a)}
                 aria-label={`Select avatar ${a}`}
               >
