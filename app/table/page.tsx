@@ -240,7 +240,7 @@ export default function TablePage() {
                 className="flex flex-col items-center"
               >
                 <div
-                  className={`pointer-events-auto select-none w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow bg-black/40 text-white transition-transform ${active ? 'animate-pulse ring-4 ring-emerald-400' : ''}`}
+                  className={`pointer-events-auto select-none w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow bg-black/40 text-white transition-transform ${active ? 'animate-pu[...]
                   aria-label={`Player ${p.name?.slice(0,16)}`}
                   title={p.name?.slice(0,16)}
                 >
@@ -407,7 +407,9 @@ export default function TablePage() {
                   <div ref={discardRef} className="relative w-32 h-48" aria-label={`Discard ${room.discardTop}`}>
                     {Array.from({ length: Math.min(5, room.discardCount) }).map((_, i) => (
                       <div key={i} className="absolute w-full h-full" style={{ transform: `translate(${i*2}px, ${i*1}px)` }}>
-                        <UnoCard code={room.discardTop} />
+                        {room.discardTop != null && (
+                          <UnoCard code={room.discardTop} />
+                        )}
                       </div>
                     ))}
                   </div>
