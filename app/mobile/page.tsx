@@ -247,7 +247,8 @@ export default function MobilePage() {
   };
 
   return (
-    <main className={`space-y-4 transition-colors ${myTurn ? 'bg-emerald-300 dark:bg-emerald-700 ring-8 ring-emerald-500 -mx-4 px-4 py-2 rounded shadow-xl' : ''}`}>
+    <>
+    <main className={`space-y-4 transition-colors pb-16 ${myTurn ? 'bg-emerald-300 dark:bg-emerald-700 ring-8 ring-emerald-500 -mx-4 px-4 py-2 rounded shadow-xl' : ''}`}>
       {joined && (
         <button
           className={`fixed top-2 right-2 z-50 p-2 rounded-full bg-white/80 dark:bg-black/40 ${showPlayable ? 'text-emerald-600' : ''}`}
@@ -309,7 +310,7 @@ export default function MobilePage() {
       )}
 
     {!joined ? (
-      <div className="space-y-3">
+      <div className="space-y-3 pb-12">
         <div className="text-xs text-gray-500">Your ID: <span className="font-mono">{playerId}</span></div>
         <label className="block">
           <span className="text-sm">Room Code</span>
@@ -363,10 +364,7 @@ export default function MobilePage() {
         </div>
       </div>
     ) : (
-      <div className="space-y-3">
-        <div className="text-sm">Room: <span className="font-mono">{room?.code ?? roomCode}</span></div>
-        <div className="text-sm">Game: {room?.gameId ?? "—"}</div>
-        <div className="text-sm">Status: {room?.status ?? "—"}</div>
+      <div className="space-y-3 pb-12">
         <div className="text-sm flex items-center gap-2">Discard Top: <span className="font-mono">{room?.discardTop ?? "—"}</span>
           {room?.discardTop && (
             <div className="ml-2 flex flex-col items-center" aria-label={`Discard ${room.discardTop}`}>
@@ -377,7 +375,6 @@ export default function MobilePage() {
             </div>
           )}
           </div>
-          <div className="text-sm">My Turn: {myTurn ? "Yes" : "No"}</div>
           {room?.log && room.log.length > 0 && (
             <div className="mt-2">
               <h3 className="font-medium mb-1">Log</h3>
@@ -451,13 +448,8 @@ export default function MobilePage() {
               <div className="flex gap-2">
                 <button
                   className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-50"
-                  disabled={!socket || !roomCode}
-                  onClick={() => {
-                    if (!myTurn) {
-                      notify("error", "Not your turn");
-                    }
-                    draw();
-                  }}
+                  disabled={!socket || !roomCode || !myTurn}
+                  onClick={() => draw()}
                 >
                   Draw
                 </button>
@@ -469,5 +461,12 @@ export default function MobilePage() {
         </div>
       )}
     </main>
+    <div className="fixed bottom-0 left-0 right-0 text-[10px] sm:text-xs flex justify-around gap-2 p-1 bg-white/70 dark:bg-black/70">
+      <span>Room: <span className="font-mono">{(room?.code ?? roomCode) || '—'}</span></span>
+      <span>Game: {room?.gameId ?? '—'}</span>
+      <span>Status: {room?.status ?? '—'}</span>
+      <span>My Turn: {myTurn ? 'Yes' : 'No'}</span>
+    </div>
+    </>
   );
 }
