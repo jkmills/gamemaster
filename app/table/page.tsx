@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import Image from "next/image";
 
@@ -38,7 +38,7 @@ type RoomState = {
   code: string;
   status: "lobby" | "active" | "finished";
   discardTop: string | null;
-  playerCounts: { id: string; name: string; count: number }[];
+  playerCounts: { id: string; name: string; avatar?: string | null; count: number }[];
   turn: string | null;
   winner: string | null;
 };
@@ -50,17 +50,91 @@ export default function TablePage() {
   const [roomCode, setRoomCode] = useState("");
   const [gameId, setGameId] = useState<string>("uno");
   const [room, setRoom] = useState<RoomState | null>(null);
-  const [played, setPlayed] = useState<{name:string, card:string} | null>(null);
+  const [played, setPlayed] = useState<{playerId:string, name:string, card:string} | null>(null);
+  const [playedStyle, setPlayedStyle] = useState<React.CSSProperties | undefined>(undefined);
+  const discardRef = useRef<HTMLDivElement | null>(null);
+  const playedRef = useRef<HTMLDivElement | null>(null);
+  const playerAnchorsRef = useRef<Map<string, HTMLDivElement>>(new Map());
 
   useEffect(() => {
     const s = io("/game", { path: "/socket.io" });
     setSocket(s);
     s.on("roomState", (state: RoomState) => setRoom(state));
-    s.on("cardPlayed", ({ name, card }: { name: string; card: string }) => {
+    s.on("cardPlayed", ({ playerId, name, card }: { playerId: string; name: string; card: string }) => {
       if (!card) return;
-      setPlayed({ name, card });
-      // shrink-away after a moment
-      setTimeout(() => setPlayed(null), 1200);
+      setPlayed({ playerId, name, card });
+      // multi-stage: from player anchor -> center (80vh) -> discard
+      setPlayedStyle(undefined);
+      setTimeout(() => {
+        const ov = playedRef.current?.getBoundingClientRect();
+        const srcAnchor = playerAnchorsRef.current.get(playerId)?.getBoundingClientRect();
+        if (!ov || !srcAnchor) {
+          // fallback directly to discard
+          const dst = discardRef.current?.getBoundingClientRect();
+          if (!ov || !dst) {
+            setPlayedStyle({ opacity: 0, transition: 'opacity 900ms ease-in-out' });
+            setTimeout(() => { setPlayed(null); setPlayedStyle(undefined); }, 950);
+            return;
+          }
+          const ovCx = ov.left + ov.width / 2;
+          const ovCy = ov.top + ov.height / 2;
+          const dstCx = dst.left + dst.width / 2;
+          const dstCy = dst.top + dst.height / 2;
+          const tx = dstCx - ovCx;
+          const ty = dstCy - ovCy;
+          const scale = dst.width / ov.width;
+          setPlayedStyle({ transform: 'translate(0px, 0px) scale(1)', opacity: 1 });
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              setPlayedStyle({
+                transform: `translate(${tx}px, ${ty}px) scale(${scale})`,
+                opacity: 0,
+                transition: 'transform 900ms ease-in-out, opacity 900ms ease-in-out',
+                willChange: 'transform, opacity',
+              });
+              setTimeout(() => { setPlayed(null); setPlayedStyle(undefined); }, 950);
+            });
+          });
+          return;
+        }
+        const ovCx = ov.left + ov.width / 2;
+        const ovCy = ov.top + ov.height / 2;
+        const srcCx = srcAnchor.left + srcAnchor.width / 2;
+        const srcCy = srcAnchor.top + srcAnchor.height / 2;
+        const fromTx = srcCx - ovCx;
+        const fromTy = srcCy - ovCy;
+        // stage 1: from player anchor to center at full size
+        setPlayedStyle({ transform: `translate(${fromTx}px, ${fromTy}px) scale(0.2)`, opacity: 0.95 });
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            setPlayedStyle({ transform: 'translate(0px, 0px) scale(1)', opacity: 1, transition: 'transform 350ms ease-out, opacity 350ms ease-out' });
+            // stage 2 after brief hold
+            setTimeout(() => {
+              const nowOv = playedRef.current?.getBoundingClientRect();
+              const dst = discardRef.current?.getBoundingClientRect();
+              if (!nowOv || !dst) {
+                setPlayedStyle({ opacity: 0, transition: 'opacity 900ms ease-in-out' });
+                setTimeout(() => { setPlayed(null); setPlayedStyle(undefined); }, 950);
+                return;
+              }
+              const nowCx = nowOv.left + nowOv.width / 2;
+              const nowCy = nowOv.top + nowOv.height / 2;
+              const dstCx = dst.left + dst.width / 2;
+              const dstCy = dst.top + dst.height / 2;
+              const tx = dstCx - nowCx;
+              const ty = dstCy - nowCy;
+              const scale = dst.width / nowOv.width;
+              setPlayedStyle({
+                transform: `translate(${tx}px, ${ty}px) scale(${scale})`,
+                opacity: 0,
+                transition: 'transform 900ms ease-in-out, opacity 900ms ease-in-out',
+                willChange: 'transform, opacity',
+              });
+              setTimeout(() => { setPlayed(null); setPlayedStyle(undefined); }, 950);
+            }, 200);
+          });
+        });
+      }, 50);
     });
     s.on("error", (e: { message?: string }) => {
       if (e && e.message) alert(e.message);
@@ -92,13 +166,66 @@ export default function TablePage() {
     const origin = window.location.origin;
     return `${origin}/mobile?code=${encodeURIComponent(room.code)}`;
   }, [room]);
+  const playedVisual = useMemo(() => {
+    if (!played) return null;
+    const code = played.card;
+    const colorKey = code[0];
+    const isWild = colorKey === 'W';
+    const src = isWild
+      ? '/uno/uno_wild.png'
+      : colorKey === 'R'
+      ? '/uno/uno_red.png'
+      : colorKey === 'Y'
+      ? '/uno/uno_yellow.png'
+      : colorKey === 'G'
+      ? '/uno/uno_green.png'
+      : '/uno/uno_blue.png';
+    let body = code.slice(1);
+    if (isWild) {
+      if (code.startsWith('W+4')) body = '+4'; else body = 'W';
+    } else if (body === 'RV') body = 'Rev';
+    else if (body === 'S') body = 'Skip';
+    const label = body || '';
+    return { src, label };
+  }, [played]);
 
   return (
     <main className="space-y-4">
       <h2 className="text-xl font-semibold">Table</h2>
-      {room?.turn && (
-        <div className="rounded bg-emerald-600 text-white px-3 py-2 text-sm font-semibold shadow">
-          Turn: {currentPlayerName ?? room.turn}
+      {/* Player anchors around edges instead of turn banner */}
+      {room && room.playerCounts?.length > 0 && (
+        <div className="fixed inset-0 pointer-events-none z-20">
+          {room.playerCounts.map((p, i) => {
+            const pos = ['top','right','bottom','left'][i % 4];
+            const common = "absolute flex items-center justify-center";
+            let cls = '';
+            if (pos === 'top') cls = 'top-4 left-1/2 -translate-x-1/2';
+            else if (pos === 'right') cls = 'right-4 top-1/2 -translate-y-1/2';
+            else if (pos === 'bottom') cls = 'bottom-4 left-1/2 -translate-x-1/2';
+            else cls = 'left-4 top-1/2 -translate-y-1/2';
+            const active = room.turn === p.id;
+            return (
+              <div
+                key={p.id}
+                ref={(el) => {
+                  const map = playerAnchorsRef.current;
+                  if (el) map.set(p.id, el);
+                  else map.delete(p.id);
+                }}
+                className={`${common} ${cls}`}
+              >
+                <div className={`pointer-events-auto select-none flex flex-col items-center gap-1 ${active ? 'animate-pulse' : ''}`}>
+                  <div className={`w-14 h-14 rounded-full flex items-center justify-center text-3xl shadow ${active ? 'ring-4 ring-emerald-400' : ''} bg-black/40 text-white`}
+                    aria-label={`Player ${p.name}`}
+                    title={p.name}
+                  >
+                    {p.avatar ? p.avatar : (p.name?.[0] || '?')}
+                  </div>
+                  <div className="text-white/90 text-xs font-semibold bg-black/40 px-2 py-0.5 rounded-full">{p.name}</div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
       {room?.winner && (
@@ -119,21 +246,24 @@ export default function TablePage() {
           </div>
         </div>
       )}
-      {played && (
+      {played && playedVisual && (
         <div className="fixed inset-0 z-40 pointer-events-none flex items-center justify-center">
-          <div className="animate-[fadeShrink_1.2s_ease_forwards] text-center">
-            <div className="mb-2 text-white text-xl drop-shadow">{played.name} played</div>
+          <div className="text-center">
+            <div className="mb-3 text-white text-2xl sm:text-3xl drop-shadow">{played.name} played a…</div>
             <div className="inline-block transform origin-center">
-              <UnoCard code={played.card} />
+              {/* Responsive: ~80vh tall, width maintaining 2:3 card ratio */}
+              <div
+                ref={playedRef}
+                className="relative rounded shadow border overflow-hidden"
+                style={{ height: '80vh', width: 'calc(80vh * 0.7)', ...playedStyle }}
+              >
+                <img src={playedVisual.src} alt={played.card} className="absolute inset-0 w-full h-full object-cover" />
+                <div className="absolute inset-0 flex items-center justify-center text-white font-bold text-6xl sm:text-7xl drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                  {playedVisual.label}
+                </div>
+              </div>
             </div>
           </div>
-          <style jsx>{`
-            @keyframes fadeShrink {
-              0% { transform: scale(1); opacity: 1; }
-              70% { transform: scale(0.5); opacity: 0.9; }
-              100% { transform: scale(0.2); opacity: 0; }
-            }
-          `}</style>
         </div>
       )}
       <div className="flex flex-wrap gap-2 items-end">
@@ -229,7 +359,7 @@ export default function TablePage() {
             )}
             <div className="text-sm flex items-center gap-2">Discard Top: <span className="font-mono">{room.discardTop ?? "—"}</span>
               {room.discardTop && (
-                <div className="ml-2 flex flex-col items-center" aria-label={`Discard ${room.discardTop}`}>
+                <div ref={discardRef} className="ml-2 flex flex-col items-center" aria-label={`Discard ${room.discardTop}`}>
                   <UnoCard code={room.discardTop} />
                   <div className="mt-1 text-[10px] leading-none font-mono text-gray-700 dark:text-gray-300" aria-hidden>
                     {room.discardTop}

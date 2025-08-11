@@ -183,8 +183,8 @@ app.prepare().then(() => {
     });
 
     // Join room as a player
-    // Expected payload: roomCode, playerId, name
-    socket.on('joinRoom', ({ roomCode, playerId, name }) => {
+    // Expected payload: roomCode, playerId, name, avatar (optional)
+    socket.on('joinRoom', ({ roomCode, playerId, name, avatar }) => {
       if (!roomCode || !playerId || !name) {
         socket.emit('error', { message: 'Invalid join payload' });
         return;
@@ -194,8 +194,13 @@ app.prepare().then(() => {
       }
       const room = rooms.get(roomCode);
       if (!room.players.has(playerId)) {
-        room.players.set(playerId, { name, hand: [] });
+        room.players.set(playerId, { name, avatar: avatar || null, hand: [] });
         room.order.push(playerId);
+      } else {
+        // Update name/avatar on rejoin if provided
+        const p = room.players.get(playerId);
+        if (name && p.name !== name) p.name = name;
+        if (typeof avatar !== 'undefined') p.avatar = avatar;
       }
       // remember identity for convenience
       socket.data.roomCode = roomCode;
@@ -433,7 +438,7 @@ function serializeRoom(room) {
     gameId: room.gameId,
     status: room.status,
     discardTop: room.discard[0] || null,
-    playerCounts: Array.from(room.players.entries()).map(([id, p]) => ({ id, name: p.name, count: p.hand.length })),
+    playerCounts: Array.from(room.players.entries()).map(([id, p]) => ({ id, name: p.name, avatar: p.avatar || null, count: p.hand.length })),
     turn: room.order[room.turnIndex] || null,
     winner: room.winner || null,
     log: Array.isArray(room.log) ? room.log.slice(-3) : [],

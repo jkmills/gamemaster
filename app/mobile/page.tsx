@@ -46,7 +46,7 @@ type RoomState = {
   gameId?: string;
   status: "lobby" | "active" | "finished";
   discardTop: string | null;
-  playerCounts: { id: string; name: string; count: number }[];
+  playerCounts: { id: string; name: string; avatar?: string | null; count: number }[];
   turn: string | null;
   winner?: string | null;
   log?: string[];
@@ -69,6 +69,8 @@ export default function MobilePage() {
   const [hand, setHand] = useState<string[]>([]);
   const [room, setRoom] = useState<RoomState | null>(null);
   const [wildPick, setWildPick] = useState<{ index: number } | null>(null);
+  const avatarOptions = useMemo(() => ['😀','😎','🐱','🐶','🦊','🐼','🐸','🐵','🐧','🐯','🐻','🐨','🦄','🐲','🚀','🎩'], []);
+  const [avatar, setAvatar] = useState<string>(avatarOptions[0]);
 
   useEffect(() => {
     // hydrate from localStorage and URL (?code=...)
@@ -79,6 +81,7 @@ export default function MobilePage() {
         setRoomCode(saved.roomCode);
         if (saved.name) setName(saved.name);
         if (saved.joined) setJoined(true);
+        if (saved.avatar) setAvatar(saved.avatar);
       }
       // allow QR prefill
       const params = new URLSearchParams(window.location.search);
@@ -113,7 +116,7 @@ export default function MobilePage() {
       try {
         const saved = JSON.parse(localStorage.getItem("gm.session") || "null");
         if (saved && saved.joined && saved.roomCode && saved.playerId && saved.name) {
-          s.emit("joinRoom", { roomCode: saved.roomCode, playerId: saved.playerId, name: saved.name });
+          s.emit("joinRoom", { roomCode: saved.roomCode, playerId: saved.playerId, name: saved.name, avatar: saved.avatar });
           s.emit("getHand", { roomCode: saved.roomCode, playerId: saved.playerId });
         }
       } catch {}
@@ -157,13 +160,13 @@ export default function MobilePage() {
     const normalized = roomCode.trim().toUpperCase();
     const trimmedName = name.trim();
     setRoomCode(normalized); // ensure subsequent emits match server room key
-    socket.emit("joinRoom", { roomCode: normalized, playerId, name: trimmedName });
+    socket.emit("joinRoom", { roomCode: normalized, playerId, name: trimmedName, avatar });
     setJoined(true);
     // persist session
     try {
       localStorage.setItem(
         "gm.session",
-        JSON.stringify({ roomCode: normalized, playerId, name: trimmedName, joined: true })
+        JSON.stringify({ roomCode: normalized, playerId, name: trimmedName, avatar, joined: true })
       );
     } catch {}
   };
@@ -253,47 +256,71 @@ export default function MobilePage() {
         </div>
       )}
 
-      {!joined ? (
-        <div className="space-y-3">
-          <div className="text-xs text-gray-500">Your ID: <span className="font-mono">{playerId}</span></div>
-          <label className="block">
-            <span className="text-sm">Room Code</span>
-            <input
-              className="block mt-1 w-full border rounded px-3 py-2 bg-white/80 dark:bg-black/20"
-              placeholder="e.g. ABC123"
-              value={roomCode}
-              onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-            />
-          </label>
-          <label className="block">
-            <span className="text-sm">Display Name</span>
-            <input
-              className="block mt-1 w-full border rounded px-3 py-2 bg-white/80 dark:bg-black/20"
-              placeholder="e.g. Alice"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </label>
+    {!joined ? (
+      <div className="space-y-3">
+        <div className="text-xs text-gray-500">Your ID: <span className="font-mono">{playerId}</span></div>
+        <label className="block">
+          <span className="text-sm">Room Code</span>
+          <input
+            className="block mt-1 w-full border rounded px-3 py-2 bg-white/80 dark:bg-black/20"
+            placeholder="e.g. ABC123"
+            value={roomCode}
+            onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+          />
+        </label>
+        <label className="block">
+          <span className="text-sm">Your Name</span>
+          <input
+            className="block mt-1 border rounded px-3 py-2 w-full bg-white/80 dark:bg-black/20"
+            placeholder="e.g. Alex"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </label>
+        <div>
+          <div className="text-sm mb-1">Choose an Avatar</div>
+          <div className="grid grid-cols-8 gap-2">
+            {avatarOptions.map((a) => (
+              <button
+                key={a}
+                type="button"
+                className={`h-10 w-10 rounded-full flex items-center justify-center text-xl shadow border ${avatar === a ? 'ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-900/30' : 'bg-white/80 dark:bg-black/20'}`}
+                onClick={() => setAvatar(a)}
+                aria-label={`Select avatar ${a}`}
+              >
+                {a}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex gap-2 pt-1">
           <button
-            className="px-4 py-2 rounded bg-emerald-600 text-white disabled:opacity-50"
-            disabled={!socket || !roomCode || !name}
+            className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-50"
+            disabled={!roomCode || !name}
             onClick={join}
           >
-            Join Room
+            Join
+          </button>
+          <button
+            className="px-4 py-2 rounded bg-slate-600 text-white"
+            onClick={changeRoom}
+          >
+            Change Room
           </button>
         </div>
-      ) : (
-        <div className="space-y-3">
-          <div className="text-sm">Room: <span className="font-mono">{room?.code ?? roomCode}</span></div>
-          <div className="text-sm">Game: {room?.gameId ?? "—"}</div>
-          <div className="text-sm">Status: {room?.status ?? "—"}</div>
-          <div className="text-sm flex items-center gap-2">Discard Top: <span className="font-mono">{room?.discardTop ?? "—"}</span>
-            {room?.discardTop && (
-              <div className="ml-2 flex flex-col items-center" aria-label={`Discard ${room.discardTop}`}>
-                <UnoCard code={room.discardTop} />
-                <div className="mt-1 text-[10px] leading-none font-mono text-gray-700 dark:text-gray-300" aria-hidden>
-                  {room.discardTop}
-                </div>
+      </div>
+    ) : (
+      <div className="space-y-3">
+        <div className="text-sm">Room: <span className="font-mono">{room?.code ?? roomCode}</span></div>
+        <div className="text-sm">Game: {room?.gameId ?? "—"}</div>
+        <div className="text-sm">Status: {room?.status ?? "—"}</div>
+        <div className="text-sm flex items-center gap-2">Discard Top: <span className="font-mono">{room?.discardTop ?? "—"}</span>
+          {room?.discardTop && (
+            <div className="ml-2 flex flex-col items-center" aria-label={`Discard ${room.discardTop}`}>
+              <UnoCard code={room.discardTop} />
+              <div className="mt-1 text-[10px] leading-none font-mono text-gray-700 dark:text-gray-300" aria-hidden>
+                {room.discardTop}
+              </div>
               </div>
             )}
           </div>
