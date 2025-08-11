@@ -168,7 +168,6 @@ export default function TablePage() {
     });
     s.on("cardPlayed", ({ playerId, name, card }: { playerId: string; name: string; card: string }) => {
       if (!card) return;
-      notify("draw", `${name.slice(0,16)} played a ${readableCard(card)}`);
       setPlayed({ playerId, name: name.slice(0,16), card });
       setPlayedStyle({ opacity: 0 });
       pendingPlayerRef.current = playerId;
