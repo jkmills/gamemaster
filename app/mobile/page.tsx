@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import Image from "next/image";
+import { useNotifications } from "../../components/Notifications";
 
 function randomId() {
   return Math.random().toString(36).slice(2, 10).toUpperCase();
@@ -61,6 +62,7 @@ type RoomState = {
 };
 
 export default function MobilePage() {
+  const { notify, confirm } = useNotifications();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [roomCode, setRoomCode] = useState("");
   const [name, setName] = useState("");
@@ -106,10 +108,10 @@ export default function MobilePage() {
     });
     s.on("playerHand", (p: { hand: string[] }) => setHand(p.hand));
     s.on("notice", (n: { message?: string }) => {
-      if (n?.message) alert(n.message);
+      if (n?.message) notify("notice", n.message);
     });
     s.on("error", (e: { message?: string }) => {
-      if (e && e.message) alert(e.message);
+      if (e?.message) notify("error", e.message);
     });
     s.on("connect", () => {
       // auto rejoin and fetch hand using latest persisted session (avoid stale closures)
@@ -123,7 +125,7 @@ export default function MobilePage() {
     });
     s.on("connect_error", (e) => console.error(e));
     s.on("roomClosed", ({ roomCode: rc }: { roomCode: string }) => {
-      alert(`Room ${rc} was closed.`);
+      notify("notice", `Room ${rc} was closed.`);
       setJoined(false);
       setRoom(null);
       setHand([]);
@@ -185,7 +187,8 @@ export default function MobilePage() {
     socket.emit("playCard", { roomCode, playerId, cardIndex: idx });
   };
 
-  const leave = () => {
+  const leave = async () => {
+    if (!(await confirm("Leave this room?"))) return;
     if (socket && roomCode) {
       socket.emit("leaveRoom", { roomCode, playerId });
     }
@@ -195,7 +198,8 @@ export default function MobilePage() {
     try { localStorage.removeItem("gm.session"); } catch {}
   };
 
-  const changeRoom = () => {
+  const changeRoom = async () => {
+    if (!(await confirm("Reset and change rooms?"))) return;
     // Reset client state to allow joining a different room; keep name and playerId
     setJoined(false);
     setRoom(null);
@@ -351,7 +355,7 @@ export default function MobilePage() {
                   className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-50"
                   disabled={!socket || !roomCode || !myTurn}
                   onClick={() => {
-                    if (!myTurn) { alert('Not your turn'); return; }
+                    if (!myTurn) { notify("error", 'Not your turn'); return; }
                     flip7Hit();
                   }}
                 >
@@ -397,7 +401,7 @@ export default function MobilePage() {
                   disabled={!socket || !roomCode}
                   onClick={() => {
                     if (!myTurn) {
-                      alert("Not your turn");
+                      notify("error", "Not your turn");
                     }
                     draw();
                   }}

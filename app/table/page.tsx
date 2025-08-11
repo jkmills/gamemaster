@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import Image from "next/image";
+import { useNotifications } from "../../components/Notifications";
 
 function UnoCard({ code }: { code: string }) {
   const { src, label } = useMemo(() => {
@@ -46,6 +47,7 @@ type RoomState = {
 type GameInfo = { id: string; name: string };
 
 export default function TablePage() {
+  const { notify, confirm } = useNotifications();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [roomCode, setRoomCode] = useState("");
   const [gameId, setGameId] = useState<string>("uno");
@@ -137,10 +139,10 @@ export default function TablePage() {
       }, 50);
     });
     s.on("error", (e: { message?: string }) => {
-      if (e && e.message) alert(e.message);
+      if (e?.message) notify("error", e.message);
     });
     s.on("roomClosed", ({ roomCode }: { roomCode: string }) => {
-      alert(`Room ${roomCode} was closed.`);
+      notify("notice", `Room ${roomCode} was closed.`);
       setRoom(null);
     });
     s.on("connect_error", (e) => console.error(e));
@@ -311,8 +313,8 @@ export default function TablePage() {
         <button
           className="px-4 py-2 rounded bg-red-600 text-white disabled:opacity-50"
           disabled={!socket || !roomCode}
-          onClick={() => {
-            if (confirm("Reset this room? All hands and state will be cleared.")) {
+          onClick={async () => {
+            if (await confirm("Reset this room? All hands and state will be cleared.")) {
               socket?.emit("resetRoom", { roomCode });
             }
           }}
@@ -322,8 +324,8 @@ export default function TablePage() {
         <button
           className="px-4 py-2 rounded bg-red-800 text-white disabled:opacity-50"
           disabled={!socket || !roomCode}
-          onClick={() => {
-            if (confirm("Close this room? Everyone will be disconnected and the room code will be invalid.")) {
+          onClick={async () => {
+            if (await confirm("Close this room? Everyone will be disconnected and the room code will be invalid.")) {
               socket?.emit("closeRoom", { roomCode });
             }
           }}
