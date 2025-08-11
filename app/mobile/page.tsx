@@ -42,6 +42,22 @@ function UnoCard({ code }: { code: string }) {
   );
 }
 
+function isLegalPlay(card: string, top: string | null) {
+  if (!top) return true;
+  if (card === 'W' || card === 'W+4') return true;
+  const tIsWild = top[0] === 'W';
+  const cColor = card[0];
+  const cSym = card.slice(1);
+  if (tIsWild) {
+    const tChosen = top.replace('W','').replace('+4','')[0];
+    if (!tChosen) return true;
+    return cColor === tChosen;
+  }
+  const tColor = top[0];
+  const tSym = top.slice(1);
+  return cColor === tColor || cSym === tSym;
+}
+
 type RoomState = {
   code: string;
   gameId?: string;
@@ -73,6 +89,7 @@ export default function MobilePage() {
   const [wildPick, setWildPick] = useState<{ index: number } | null>(null);
   const avatarOptions = useMemo(() => ['😀','😎','🐱','🐶','🦊','🐼','🐸','🐵','🐧','🐯','🐻','🐨','🦄','🐲','🚀','🎩'], []);
   const [avatar, setAvatar] = useState<string>(avatarOptions[0]);
+  const [showPlayable, setShowPlayable] = useState(false);
 
   useEffect(() => {
     // hydrate from localStorage and URL (?code=...)
@@ -108,7 +125,9 @@ export default function MobilePage() {
     });
     s.on("playerHand", (p: { hand: string[] }) => setHand(p.hand));
     s.on("notice", (n: { message?: string }) => {
-      if (n?.message) notify("notice", n.message);
+      if (!n?.message) return;
+      if (/you drew/i.test(n.message)) notify("draw", n.message);
+      else notify("notice", n.message);
     });
     s.on("error", (e: { message?: string }) => {
       if (e?.message) notify("error", e.message);
@@ -209,6 +228,15 @@ export default function MobilePage() {
 
   return (
     <main className={`space-y-4 transition-colors ${myTurn ? 'bg-emerald-200 dark:bg-emerald-800/50 ring-4 ring-emerald-500 -mx-4 px-4 py-2 rounded' : ''}`}>
+      {joined && (
+        <button
+          className={`fixed top-2 left-2 z-50 p-2 rounded-full bg-white/80 dark:bg-black/40 ${showPlayable ? 'text-emerald-600' : ''}`}
+          onClick={() => setShowPlayable(v => !v)}
+          aria-label="Toggle playable cards"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M12 5c-7.633 0-11 7-11 7s3.367 7 11 7 11-7 11-7-3.367-7-11-7zm0 12a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg>
+        </button>
+      )}
       <h2 className="text-xl font-semibold">Mobile</h2>
       {room?.winner && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
@@ -378,22 +406,26 @@ export default function MobilePage() {
               <div>
                 <h3 className="font-medium mb-1">My Hand</h3>
                 <div className="flex flex-wrap gap-3">
-                  {hand.map((c, idx) => (
-                    <div key={`${c}-${idx}`} className="flex flex-col items-center">
-                      <button
-                        onClick={() => myTurn && play(idx)}
-                        className={`rounded ${myTurn ? "" : "opacity-60 cursor-not-allowed"}`}
-                        disabled={!myTurn}
-                        title={myTurn ? "Play" : "Wait for your turn"}
-                        aria-label={`Card ${c}`}
-                      >
-                        <UnoCard code={c} />
-                      </button>
-                      <div className="mt-1 text-[10px] leading-none font-mono text-gray-700 dark:text-gray-300" aria-hidden>
-                        {c}
+                  {hand.map((c, idx) => {
+                    const playable = isLegalPlay(c, room?.discardTop || null);
+                    const disabled = !myTurn || (showPlayable && !playable);
+                    return (
+                      <div key={`${c}-${idx}`} className="flex flex-col items-center">
+                        <button
+                          onClick={() => !disabled && play(idx)}
+                          className={`rounded ${disabled ? "opacity-60 cursor-not-allowed" : ""} ${showPlayable && !playable ? "grayscale" : ""}`}
+                          disabled={disabled}
+                          title={myTurn ? "Play" : "Wait for your turn"}
+                          aria-label={`Card ${c}`}
+                        >
+                          <UnoCard code={c} />
+                        </button>
+                        <div className="mt-1 text-[10px] leading-none font-mono text-gray-700 dark:text-gray-300" aria-hidden>
+                          {c}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
               <div className="flex gap-2">

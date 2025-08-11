@@ -4,7 +4,7 @@ import { createContext, useContext, useState, ReactNode } from "react";
 
 interface Toast {
   id: number;
-  type: "error" | "notice";
+  type: "error" | "notice" | "draw";
   message: string;
 }
 
@@ -14,7 +14,7 @@ interface ConfirmState {
 }
 
 const NotificationsContext = createContext<{
-  notify: (type: "error" | "notice", message: string) => void;
+  notify: (type: "error" | "notice" | "draw", message: string) => void;
   confirm: (message: string) => Promise<boolean>;
 } | null>(null);
 
@@ -22,7 +22,7 @@ export function Notifications({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
 
-  const notify = (type: "error" | "notice", message: string) => {
+  const notify = (type: "error" | "notice" | "draw", message: string) => {
     const id = Date.now();
     setToasts((prev) => [...prev, { id, type, message }]);
     setTimeout(() => {
@@ -39,12 +39,22 @@ export function Notifications({ children }: { children: ReactNode }) {
     <NotificationsContext.Provider value={{ notify, confirm }}>
       {children}
       <div className="fixed top-4 right-4 space-y-2 z-50">
-        {toasts.map((t) => (
+        {toasts.filter(t => t.type !== "draw").map((t) => (
           <div
             key={t.id}
             className={`px-4 py-2 rounded shadow text-white $
               {t.type === "error" ? "bg-red-600" : "bg-blue-600"}
             `}
+          >
+            {t.message}
+          </div>
+        ))}
+      </div>
+      <div className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center">
+        {toasts.filter(t => t.type === "draw").map((t) => (
+          <div
+            key={t.id}
+            className="fade-then-out px-6 py-3 rounded-full bg-black/80 text-white"
           >
             {t.message}
           </div>
