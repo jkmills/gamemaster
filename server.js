@@ -111,30 +111,8 @@ app.prepare().then(() => {
       const f = room.flip7;
       if (!f || f.roundOver) return;
       if (f.stayed.has(playerId) || f.busted.has(playerId)) return;
-      // draw top card
-      if (!room.deck.length) return; // no reshuffle in Phase 1
-      const card = room.deck.shift();
-      // parse number component
-      const num = card.slice(1); // e.g., 'R3' -> '3'
-      const isNumber = /^\d+$/.test(num);
-      if (!isNumber) {
-        // For Phase 1, ignore non-number cards (not present in stub deck)
-      } else {
-        const set = f.uniques.get(playerId) || new Set();
-        if (set.has(num)) {
-          // bust
-          f.busted.add(playerId);
-        } else {
-          set.add(num);
-          f.uniques.set(playerId, set);
-          const curr = f.roundScore.get(playerId) || 0;
-          f.roundScore.set(playerId, curr + parseInt(num, 10));
-          // 7 uniques ends round with +15 bonus
-          if (set.size >= 7) {
-            f.roundOver = true;
-          }
-        }
-      }
+      // draw and apply card effects
+      drawFlip7Card(room, playerId);
       // advance turn to next non-stayed/non-busted player
       advanceFlip7Turn(room);
       // if round end conditions met, score and maybe finish game
@@ -257,16 +235,26 @@ app.prepare().then(() => {
         room.flip7.uniques = new Map(); // pid -> Set of numbers as strings
         room.flip7.stayed = new Set();
         room.flip7.busted = new Set();
-        room.flip7.roundScore = new Map(); // pid -> number
         room.flip7.roundOver = false;
+        // per-round scoring pieces
+        room.flip7.numScore = new Map(); // pid -> sum of number cards
+        room.flip7.modScore = new Map(); // pid -> sum of modifier cards
+        room.flip7.x2 = new Set(); // players holding x2
+        room.flip7.secondChance = new Set(); // players holding Second Chance
+        room.flip7.roundScore = new Map(); // pid -> running total after modifiers/multipliers
         // cumulative scores across rounds
         room.flip7.scores = room.flip7.scores || new Map();
         // initialize for any missing players this round
         for (const pid of room.order) {
           if (!room.flip7.scores.has(pid)) room.flip7.scores.set(pid, 0);
           room.flip7.uniques.set(pid, new Set());
+          room.flip7.numScore.set(pid, 0);
+          room.flip7.modScore.set(pid, 0);
           room.flip7.roundScore.set(pid, 0);
+          // deal one opening card face-up
+          drawFlip7Card(room, pid);
         }
+        advanceFlip7Turn(room);
       }
       io.of('/game').to(`instance:${roomCode}`).emit('roomState', serializeRoom(room));
     });
@@ -515,6 +503,48 @@ function serializeFlip7(room) {
   return { scores, roundScore, stayed, busted, uniquesCount, roundOver: !!f.roundOver };
 }
 
+function drawFlip7Card(room, playerId) {
+  const f = room.flip7;
+  if (!room.deck.length) return;
+  const card = room.deck.shift();
+  const numMatch = card.match(/^\d+$/);
+  if (numMatch) {
+    const num = parseInt(card, 10);
+    const set = f.uniques.get(playerId) || new Set();
+    if (set.has(card)) {
+      if (f.secondChance.has(playerId)) {
+        f.secondChance.delete(playerId);
+      } else {
+        f.busted.add(playerId);
+        return;
+      }
+    } else {
+      set.add(card);
+      f.uniques.set(playerId, set);
+      f.numScore.set(playerId, (f.numScore.get(playerId) || 0) + num);
+      if (set.size >= 7) f.roundOver = true;
+    }
+  } else if (card === 'x2') {
+    f.x2.add(playerId);
+  } else if (card.startsWith('+')) {
+    const mod = parseInt(card.slice(1), 10);
+    f.modScore.set(playerId, (f.modScore.get(playerId) || 0) + mod);
+  } else if (card === 'SecondChance') {
+    f.secondChance.add(playerId);
+  } else if (card === 'Freeze') {
+    f.stayed.add(playerId);
+  } else if (card === 'Flip3') {
+    for (let i = 0; i < 3; i++) {
+      drawFlip7Card(room, playerId);
+      if (f.busted.has(playerId) || f.roundOver) break;
+    }
+  }
+  const base = f.numScore.get(playerId) || 0;
+  const mod = f.modScore.get(playerId) || 0;
+  const total = base * (f.x2.has(playerId) ? 2 : 1) + mod;
+  f.roundScore.set(playerId, total);
+}
+
 function advanceFlip7Turn(room) {
   const f = room.flip7;
   if (!f) return;
@@ -537,11 +567,13 @@ function maybeFinishFlip7Round(io, room) {
   if (!f) return;
   const allDone = room.order.every(pid => f.stayed.has(pid) || f.busted.has(pid));
   if (!f.roundOver && !allDone) return;
-  // finalize round: apply +15 bonus to any player with 7 uniques
+  // finalize round scores
   for (const [pid, set] of f.uniques.entries()) {
-    if (set.size >= 7) {
-      f.roundScore.set(pid, (f.roundScore.get(pid) || 0) + 15);
-    }
+    const base = f.numScore.get(pid) || 0;
+    const mod = f.modScore.get(pid) || 0;
+    let total = base * (f.x2.has(pid) ? 2 : 1) + mod;
+    if (set.size >= 7) total += 15;
+    f.roundScore.set(pid, total);
   }
   // accumulate to total scores
   for (const [pid, score] of f.roundScore.entries()) {
@@ -577,9 +609,15 @@ function maybeFinishFlip7Round(io, room) {
   f.stayed = new Set();
   f.busted = new Set();
   f.roundScore = new Map();
+  f.numScore = new Map();
+  f.modScore = new Map();
+  f.x2 = new Set();
+  f.secondChance = new Set();
   f.roundOver = false;
   for (const pid of room.order) {
     f.uniques.set(pid, new Set());
+    f.numScore.set(pid, 0);
+    f.modScore.set(pid, 0);
     f.roundScore.set(pid, 0);
   }
 }
