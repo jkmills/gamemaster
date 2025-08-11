@@ -64,7 +64,7 @@ export default function TablePage() {
       if (!card) return;
       setPlayed({ playerId, name, card });
       // multi-stage: from player anchor -> center (80vh) -> discard
-      setPlayedStyle(undefined);
+      setPlayedStyle({ opacity: 0 });
       setTimeout(() => {
         const ov = playedRef.current?.getBoundingClientRect();
         const srcAnchor = playerAnchorsRef.current.get(playerId)?.getBoundingClientRect();
@@ -104,10 +104,10 @@ export default function TablePage() {
         const fromTx = srcCx - ovCx;
         const fromTy = srcCy - ovCy;
         // stage 1: from player anchor to center at full size
-        setPlayedStyle({ transform: `translate(${fromTx}px, ${fromTy}px) scale(0.2)`, opacity: 0.95 });
+        setPlayedStyle({ transform: `translate(${fromTx}px, ${fromTy}px) scale(0.2)`, opacity: 0 });
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
-            setPlayedStyle({ transform: 'translate(0px, 0px) scale(1)', opacity: 1, transition: 'transform 350ms ease-out, opacity 350ms ease-out' });
+            setPlayedStyle({ transform: 'translate(0px, 0px) scale(1)', opacity: 1, transition: 'transform 450ms ease-out, opacity 450ms ease-out' });
             // stage 2 after brief hold
             setTimeout(() => {
               const nowOv = playedRef.current?.getBoundingClientRect();
@@ -131,7 +131,7 @@ export default function TablePage() {
                 willChange: 'transform, opacity',
               });
               setTimeout(() => { setPlayed(null); setPlayedStyle(undefined); }, 950);
-            }, 200);
+            }, 300);
           });
         });
       }, 50);
