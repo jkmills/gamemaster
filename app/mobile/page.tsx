@@ -230,7 +230,7 @@ export default function MobilePage() {
     <main className={`space-y-4 transition-colors ${myTurn ? 'bg-emerald-200 dark:bg-emerald-800/50 ring-4 ring-emerald-500 -mx-4 px-4 py-2 rounded' : ''}`}>
       {joined && (
         <button
-          className={`fixed top-2 left-2 z-50 p-2 rounded-full bg-white/80 dark:bg-black/40 ${showPlayable ? 'text-emerald-600' : ''}`}
+          className={`fixed top-2 right-2 z-50 p-2 rounded-full bg-white/80 dark:bg-black/40 ${showPlayable ? 'text-emerald-600' : ''}`}
           onClick={() => setShowPlayable(v => !v)}
           aria-label="Toggle playable cards"
         >
@@ -413,7 +413,7 @@ export default function MobilePage() {
                       <div key={`${c}-${idx}`} className="flex flex-col items-center">
                         <button
                           onClick={() => !disabled && play(idx)}
-                          className={`rounded ${disabled ? "opacity-60 cursor-not-allowed" : ""} ${showPlayable && !playable ? "grayscale" : ""}`}
+                          className={`rounded ${disabled ? "opacity-60 cursor-not-allowed" : ""}`}
                           disabled={disabled}
                           title={myTurn ? "Play" : "Wait for your turn"}
                           aria-label={`Card ${c}`}
