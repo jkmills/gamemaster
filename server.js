@@ -4,6 +4,7 @@ const next = require('next');
 const { Server } = require('socket.io');
 const url = require('url');
 const { games, defaultGameId } = require('./games');
+const { formatCard } = require('./games/unoUtils');
 
 const dev = process.env.NODE_ENV !== 'production';
 const app = next({ dev });
@@ -300,10 +301,11 @@ app.prepare().then(() => {
       const priv = room.players.get(playerId);
       if (target && priv) target.emit('playerHand', { hand: priv.hand });
       const actorName = room.players.get(playerId)?.name || playerId;
+      const message = `${actorName} drew a card`;
       if (!Array.isArray(room.log)) room.log = [];
-      room.log.push(`${actorName} drew a card`);
+      room.log.push(message);
       trimLog(room);
-      io.of('/game').to(`instance:${roomCode}`).emit('cardDrawn', { playerId, name: actorName });
+      io.of('/game').to(`instance:${roomCode}`).emit('game-event', { message });
     });
 
     socket.on('passTurn', ({ roomCode, playerId }) => {
@@ -331,28 +333,35 @@ app.prepare().then(() => {
       const game = games[room.gameId] || {};
       if (typeof game.applyPlay === 'function') {
         const res = game.applyPlay(room, playerId, cardIndex, { chosenColor });
-        if (!res?.ok) {
+        if (res?.ok) {
+          const actorName = room.players.get(playerId)?.name || playerId;
+          const logs = Array.isArray(res.log) && res.log.length > 0 ? res.log : [];
+          if (logs.length > 0) {
+            if (!Array.isArray(room.log)) room.log = [];
+            room.log.push(...logs);
+            for (const logMessage of logs) {
+              io.of('/game').to(`instance:${roomCode}`).emit('game-event', { message: logMessage });
+            }
+          } else {
+            const card = room.discard[0];
+            const message = `${actorName} played ${formatCard(card)}`;
+            if (!Array.isArray(room.log)) room.log = [];
+            room.log.push(message);
+            io.of('/game').to(`instance:${roomCode}`).emit('game-event', { message });
+          }
+          trimLog(room);
+          const playedCard = room.discard[0] || null;
+          io.of('/game').to(`instance:${roomCode}`).emit('cardPlayed', { playerId, name: actorName, card: playedCard });
+          if (Array.isArray(res.notices)) {
+            for (const n of res.notices) {
+              const target = findSocketByPlayer(io, roomCode, n.playerId);
+              if (target && n.message) target.emit('notice', { message: n.message });
+            }
+          }
+        } else {
           socket.emit('error', { message: res?.error || 'Illegal play' });
           return;
         }
-        // forward any per-player notices (e.g., +2/+4 effects)
-        if (Array.isArray(res.notices)) {
-          for (const n of res.notices) {
-            const target = findSocketByPlayer(io, roomCode, n.playerId);
-            if (target && n.message) target.emit('notice', { message: n.message });
-          }
-        }
-        // append log entries
-        const logs = Array.isArray(res.log) ? res.log : (res.logEntry ? [res.logEntry] : []);
-        if (logs.length) {
-          if (!Array.isArray(room.log)) room.log = [];
-          room.log.push(...logs);
-          trimLog(room);
-        }
-        // broadcast a play animation event with the encoded top card and actor name
-        const actorName = room.players.get(playerId)?.name || playerId;
-        const playedCard = room.discard[0] || null;
-        io.of('/game').to(`instance:${roomCode}`).emit('cardPlayed', { playerId, name: actorName, card: playedCard });
       } else {
         if (cardIndex < 0 || cardIndex >= p.hand.length) return;
         const card = p.hand.splice(cardIndex, 1)[0];

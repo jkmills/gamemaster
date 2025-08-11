@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, ReactNode, useRef, useEffect } from "react";
 
 interface Toast {
   id: number;
@@ -8,8 +8,14 @@ interface Toast {
   message: string;
 }
 
+interface AggregatableToast {
+  id: number;
+  baseMessage: string;
+  count: number;
+}
+
 interface ConfirmState {
-  message: string;
+  message:string;
   resolve: (value: boolean) => void;
 }
 
@@ -20,14 +26,63 @@ const NotificationsContext = createContext<{
 
 export function Notifications({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [activeAggregate, setActiveAggregate] = useState<AggregatableToast | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
+  const timeoutsRef = useRef(new Map<number, NodeJS.Timeout>());
+
+  useEffect(() => {
+    const timeouts = timeoutsRef.current;
+    return () => {
+      timeouts.forEach(timeoutId => clearTimeout(timeoutId));
+    };
+  }, []);
+
+  const removeToast = (id: number) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+    if (activeAggregate?.id === id) {
+      setActiveAggregate(null);
+    }
+    const timeoutId = timeoutsRef.current.get(id);
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      timeoutsRef.current.delete(id);
+    }
+  };
+
+  const addToast = (toast: Toast, duration: number) => {
+    setToasts(prev => [toast, ...prev]);
+    const timeoutId = setTimeout(() => removeToast(toast.id), duration);
+    timeoutsRef.current.set(toast.id, timeoutId);
+  };
+
+  const resetToastTimer = (id: number, duration: number) => {
+    const oldTimeoutId = timeoutsRef.current.get(id);
+    if (oldTimeoutId) clearTimeout(oldTimeoutId);
+    const newTimeoutId = setTimeout(() => removeToast(id), duration);
+    timeoutsRef.current.set(id, newTimeoutId);
+  };
 
   const notify = (type: "error" | "notice" | "draw", message: string) => {
-    const id = Date.now();
-    setToasts((prev) => [...prev, { id, type, message }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 4000);
+    const DURATION = 5000;
+    const canAggregate = type === 'draw' && message.endsWith('drew a card');
+
+    if (activeAggregate && (!canAggregate || activeAggregate.baseMessage !== message)) {
+      setActiveAggregate(null);
+    }
+
+    if (canAggregate && activeAggregate?.baseMessage === message) {
+      const newCount = activeAggregate.count + 1;
+      const newToastMessage = `${message} (x${newCount})`;
+      setToasts(prev => prev.map(t => t.id === activeAggregate.id ? { ...t, message: newToastMessage } : t));
+      setActiveAggregate(prev => ({ ...prev!, count: newCount }));
+      resetToastTimer(activeAggregate.id, DURATION);
+    } else {
+      const id = Date.now();
+      addToast({ id, type, message }, DURATION);
+      if (canAggregate) {
+        setActiveAggregate({ id, baseMessage: message, count: 1 });
+      }
+    }
   };
 
   const confirm = (message: string) =>
@@ -38,27 +93,28 @@ export function Notifications({ children }: { children: ReactNode }) {
   return (
     <NotificationsContext.Provider value={{ notify, confirm }}>
       {children}
-      <div className="fixed top-4 right-4 space-y-2 z-50">
-        {toasts.filter(t => t.type !== "draw").map((t) => (
-          <div
-            key={t.id}
-            className={`px-4 py-2 rounded shadow text-white $
-              {t.type === "error" ? "bg-red-600" : "bg-blue-600"}
-            `}
-          >
-            {t.message}
-          </div>
-        ))}
-      </div>
-      <div className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center">
-        {toasts.filter(t => t.type === "draw").map((t) => (
-          <div
-            key={t.id}
-            className="fade-then-out px-6 py-3 rounded-full bg-black/80 text-white"
-          >
-            {t.message}
-          </div>
-        ))}
+      <div className="fixed top-4 right-4 space-y-2 z-50 w-72">
+        {toasts.slice(0, 5).map((t, i) => {
+          let fromColor = "rgba(37, 99, 235, 0.9)";
+          let toColor = "rgba(23, 59, 145, 0.9)";
+          if (t.type === 'error') {
+            fromColor = "rgba(220, 38, 38, 0.9)";
+            toColor = "rgba(150, 28, 28, 0.9)";
+          } else if (t.type === 'draw') {
+            fromColor = "rgba(30, 30, 30, 0.9)";
+            toColor = "rgba(0, 0, 0, 0.9)";
+          }
+
+          return (
+            <div
+              key={t.id}
+              className="toast-animated px-4 py-3 rounded-md text-white font-semibold border border-white/20 shadow-2xl backdrop-blur-sm"
+              style={{ background: `radial-gradient(circle at top left, ${fromColor} 0%, ${toColor} 100%)` }}
+            >
+              {t.message}
+            </div>
+          );
+        })}
       </div>
       {confirmState && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
