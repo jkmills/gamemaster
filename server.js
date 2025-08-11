@@ -405,7 +405,7 @@ function serializeRoom(room) {
     playerCounts: Array.from(room.players.entries()).map(([id, p]) => ({ id, name: p.name, count: p.hand.length })),
     turn: room.order[room.turnIndex] || null,
     winner: room.winner || null,
-    log: Array.isArray(room.log) ? room.log.slice(-20) : [],
+    log: Array.isArray(room.log) ? room.log.slice(-3) : [],
     flip7: room.gameId === 'flip7' && room.flip7 ? serializeFlip7(room) : undefined,
   };
 }

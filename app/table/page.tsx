@@ -74,6 +74,11 @@ export default function TablePage() {
     const p = room.playerCounts?.find(p => p.id === room.turn);
     return p?.name || room.turn;
   }, [room]);
+  const winnerName = useMemo(() => {
+    if (!room?.winner) return null;
+    const p = room.playerCounts?.find(p => p.id === room.winner);
+    return p?.name || room.winner;
+  }, [room]);
   const joinUrl = useMemo(() => {
     if (!room?.code) return '';
     if (typeof window === 'undefined') return '';
@@ -87,6 +92,14 @@ export default function TablePage() {
       {room?.turn && (
         <div className="rounded bg-emerald-600 text-white px-3 py-2 text-sm font-semibold shadow">
           Turn: {currentPlayerName ?? room.turn}
+        </div>
+      )}
+      {room?.winner && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+          <div className="text-center text-white">
+            <div className="text-2xl font-semibold">Winner</div>
+            <div className="mt-2 text-6xl font-extrabold">{winnerName}</div>
+          </div>
         </div>
       )}
       <div className="flex flex-wrap gap-2 items-end">

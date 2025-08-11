@@ -145,6 +145,11 @@ export default function MobilePage() {
     if (!room) return false;
     return room.turn === playerId;
   }, [room, playerId]);
+  const winnerName = useMemo(() => {
+    if (!room?.winner) return null;
+    const p = room.playerCounts?.find(p => p.id === room.winner);
+    return p?.name || room.winner;
+  }, [room]);
 
   const join = () => {
     if (!socket || !roomCode || !name) return;
@@ -207,6 +212,14 @@ export default function MobilePage() {
       {myTurn && (
         <div className="rounded bg-emerald-600 text-white px-3 py-2 text-sm font-semibold shadow">
           Your turn — play a card or draw
+        </div>
+      )}
+      {room?.winner && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+          <div className="text-center text-white">
+            <div className="text-2xl font-semibold">Winner</div>
+            <div className="mt-2 text-4xl sm:text-5xl font-extrabold">{winnerName}</div>
+          </div>
         </div>
       )}
 
@@ -334,7 +347,6 @@ export default function MobilePage() {
                 >
                   Draw
                 </button>
-                <button className="px-4 py-2 rounded bg-slate-600 text-white disabled:opacity-50" disabled={!myTurn} onClick={pass}>Pass</button>
                 <button className="px-4 py-2 rounded bg-amber-600 text-white" onClick={changeRoom}>Change Room</button>
                 <button className="px-4 py-2 rounded bg-red-600 text-white" onClick={leave}>Leave Room</button>
               </div>
