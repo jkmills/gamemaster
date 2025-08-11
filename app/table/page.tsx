@@ -27,7 +27,7 @@ function UnoCard({ code }: { code: string }) {
     return { src, label };
   }, [code]);
   return (
-    <div className="relative w-32 h-48 rounded shadow-lg overflow-hidden">
+    <div className="relative w-32 h-48 rounded overflow-hidden">
       <Image src={src} alt={code} fill style={{ objectFit: 'cover' }} />
       <div className="absolute inset-0 flex items-center justify-center text-white font-bold text-base drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]">
         {label}
@@ -69,6 +69,80 @@ export default function TablePage() {
   const discardRef = useRef<HTMLDivElement | null>(null);
   const playedRef = useRef<HTMLDivElement | null>(null);
   const playerAnchorsRef = useRef<Map<string, HTMLDivElement>>(new Map());
+  const pendingPlayerRef = useRef<string | null>(null);
+  const runPlayedAnimation = (playerId: string) => {
+    setTimeout(() => {
+      const ov = playedRef.current?.getBoundingClientRect();
+      const srcAnchor = playerAnchorsRef.current.get(playerId)?.getBoundingClientRect();
+      if (!ov || !srcAnchor) {
+        const dst = discardRef.current?.getBoundingClientRect();
+        if (!ov || !dst) {
+          setPlayedStyle({ opacity: 0, transition: 'opacity 900ms ease-in-out' });
+          setTimeout(() => { setPlayed(null); setPlayedStyle(undefined); pendingPlayerRef.current = null; }, 950);
+          return;
+        }
+        const ovCx = ov.left + ov.width / 2;
+        const ovCy = ov.top + ov.height / 2;
+        const dstCx = dst.left + dst.width / 2;
+        const dstCy = dst.top + dst.height / 2;
+        const tx = dstCx - ovCx;
+        const ty = dstCy - ovCy;
+        const scale = dst.width / ov.width;
+        setPlayedStyle({ transform: 'translate(0px, 0px) scale(1)', opacity: 1 });
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            setPlayedStyle({
+              transform: `translate(${tx}px, ${ty}px) scale(${scale})`,
+              opacity: 0,
+              transition: 'transform 900ms ease-in-out, opacity 900ms ease-in-out',
+              willChange: 'transform, opacity',
+            });
+            setTimeout(() => { setPlayed(null); setPlayedStyle(undefined); pendingPlayerRef.current = null; }, 950);
+          });
+        });
+        return;
+      }
+      const ovCx = ov.left + ov.width / 2;
+      const ovCy = ov.top + ov.height / 2;
+      const srcCx = srcAnchor.left + srcAnchor.width / 2;
+      const srcCy = srcAnchor.top + srcAnchor.height / 2;
+      const fromTx = srcCx - ovCx;
+      const fromTy = srcCy - ovCy;
+      setPlayedStyle({ transform: `translate(${fromTx}px, ${fromTy}px) scale(0.2)`, opacity: 0 });
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setPlayedStyle({ transform: 'translate(0px, 0px) scale(1)', opacity: 1, transition: 'transform 450ms ease-out, opacity 450ms ease-out' });
+          setTimeout(() => {
+            const nowOv = playedRef.current?.getBoundingClientRect();
+            const dst = discardRef.current?.getBoundingClientRect();
+            if (!nowOv || !dst) {
+              setPlayedStyle({ opacity: 0, transition: 'opacity 900ms ease-in-out' });
+              setTimeout(() => { setPlayed(null); setPlayedStyle(undefined); pendingPlayerRef.current = null; }, 950);
+              return;
+            }
+            const nowCx = nowOv.left + nowOv.width / 2;
+            const nowCy = nowOv.top + nowOv.height / 2;
+            const dstCx = dst.left + dst.width / 2;
+            const dstCy = dst.top + dst.height / 2;
+            const tx = dstCx - nowCx;
+            const ty = dstCy - nowCy;
+            const scale = dst.width / nowOv.width;
+            setPlayedStyle({
+              transform: `translate(${tx}px, ${ty}px) scale(${scale})`,
+              opacity: 0,
+              transition: 'transform 900ms ease-in-out, opacity 900ms ease-in-out',
+              willChange: 'transform, opacity',
+            });
+            setTimeout(() => { setPlayed(null); setPlayedStyle(undefined); pendingPlayerRef.current = null; }, 950);
+          }, 600);
+        });
+      });
+    }, 50);
+  };
+  const handlePlayedImageLoad = () => {
+    const pid = pendingPlayerRef.current;
+    if (pid) runPlayedAnimation(pid);
+  };
   const [showInstructions, setShowInstructions] = useState(false);
   const [instructions, setInstructions] = useState("");
 
@@ -80,78 +154,8 @@ export default function TablePage() {
       if (!card) return;
       notify("draw", `${name.slice(0,16)} played a ${readableCard(card)}`);
       setPlayed({ playerId, name: name.slice(0,16), card });
-      // multi-stage: from player anchor -> center (80vh) -> discard
       setPlayedStyle({ opacity: 0 });
-      setTimeout(() => {
-        const ov = playedRef.current?.getBoundingClientRect();
-        const srcAnchor = playerAnchorsRef.current.get(playerId)?.getBoundingClientRect();
-        if (!ov || !srcAnchor) {
-          // fallback directly to discard
-          const dst = discardRef.current?.getBoundingClientRect();
-          if (!ov || !dst) {
-            setPlayedStyle({ opacity: 0, transition: 'opacity 900ms ease-in-out' });
-            setTimeout(() => { setPlayed(null); setPlayedStyle(undefined); }, 950);
-            return;
-          }
-          const ovCx = ov.left + ov.width / 2;
-          const ovCy = ov.top + ov.height / 2;
-          const dstCx = dst.left + dst.width / 2;
-          const dstCy = dst.top + dst.height / 2;
-          const tx = dstCx - ovCx;
-          const ty = dstCy - ovCy;
-          const scale = dst.width / ov.width;
-          setPlayedStyle({ transform: 'translate(0px, 0px) scale(1)', opacity: 1 });
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              setPlayedStyle({
-                transform: `translate(${tx}px, ${ty}px) scale(${scale})`,
-                opacity: 0,
-                transition: 'transform 900ms ease-in-out, opacity 900ms ease-in-out',
-                willChange: 'transform, opacity',
-              });
-              setTimeout(() => { setPlayed(null); setPlayedStyle(undefined); }, 950);
-            });
-          });
-          return;
-        }
-        const ovCx = ov.left + ov.width / 2;
-        const ovCy = ov.top + ov.height / 2;
-        const srcCx = srcAnchor.left + srcAnchor.width / 2;
-        const srcCy = srcAnchor.top + srcAnchor.height / 2;
-        const fromTx = srcCx - ovCx;
-        const fromTy = srcCy - ovCy;
-        // stage 1: from player anchor to center at full size
-        setPlayedStyle({ transform: `translate(${fromTx}px, ${fromTy}px) scale(0.2)`, opacity: 0 });
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            setPlayedStyle({ transform: 'translate(0px, 0px) scale(1)', opacity: 1, transition: 'transform 450ms ease-out, opacity 450ms ease-out' });
-            // stage 2 after brief hold
-            setTimeout(() => {
-              const nowOv = playedRef.current?.getBoundingClientRect();
-              const dst = discardRef.current?.getBoundingClientRect();
-              if (!nowOv || !dst) {
-                setPlayedStyle({ opacity: 0, transition: 'opacity 900ms ease-in-out' });
-                setTimeout(() => { setPlayed(null); setPlayedStyle(undefined); }, 950);
-                return;
-              }
-              const nowCx = nowOv.left + nowOv.width / 2;
-              const nowCy = nowOv.top + nowOv.height / 2;
-              const dstCx = dst.left + dst.width / 2;
-              const dstCy = dst.top + dst.height / 2;
-              const tx = dstCx - nowCx;
-              const ty = dstCy - nowCy;
-              const scale = dst.width / nowOv.width;
-              setPlayedStyle({
-                transform: `translate(${tx}px, ${ty}px) scale(${scale})`,
-                opacity: 0,
-                transition: 'transform 900ms ease-in-out, opacity 900ms ease-in-out',
-                willChange: 'transform, opacity',
-              });
-              setTimeout(() => { setPlayed(null); setPlayedStyle(undefined); }, 950);
-            }, 600);
-          });
-        });
-      }, 50);
+      pendingPlayerRef.current = playerId;
     });
     s.on("cardDrawn", ({ name }: { playerId: string; name: string }) => {
       notify("draw", `${name.slice(0,16)} drew a card`);
@@ -221,37 +225,28 @@ export default function TablePage() {
   return (
     <main className="table-ui">
       <h2 className="text-xl font-semibold">Table</h2>
-      {/* Player anchors around edges instead of turn banner */}
+      {/* Player avatars along bottom */}
       {room && room.playerCounts?.length > 0 && (
-        <div className="fixed inset-0 pointer-events-none z-20">
-          {room.playerCounts.map((p, i) => {
-            const pos = ['top','right','bottom','left'][i % 4];
-            const common = "absolute flex items-center justify-center";
-            let cls = '';
-            if (pos === 'top') cls = 'top-4 left-1/2 -translate-x-1/2';
-            else if (pos === 'right') cls = 'right-4 top-1/2 -translate-y-1/2';
-            else if (pos === 'bottom') cls = 'bottom-4 left-1/2 -translate-x-1/2';
-            else cls = 'left-4 top-1/2 -translate-y-1/2';
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 pointer-events-none z-20 flex gap-4">
+          {room.playerCounts.map((p) => {
             const active = room.turn === p.id;
             return (
               <div
                 key={p.id}
                 ref={(el) => {
                   const map = playerAnchorsRef.current;
-                  if (el) map.set(p.id, el);
-                  else map.delete(p.id);
+                  if (el) map.set(p.id, el); else map.delete(p.id);
                 }}
-                className={`${common} ${cls}`}
+                className="flex flex-col items-center"
               >
-                <div className={`pointer-events-auto select-none flex flex-col items-center gap-1 ${active ? 'animate-pulse' : ''}`}>
-                  <div className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow bg-black/40 text-white transition-transform ${active ? 'ring-4 ring-emerald-400 scale-[3]' : ''}`}
-                    aria-label={`Player ${p.name?.slice(0,16)}`}
-                    title={p.name?.slice(0,16)}
-                  >
-                    {p.avatar ? p.avatar : (p.name?.[0] || '?')}
-                  </div>
-                  <div className="text-white/90 text-xs font-semibold bg-black/40 px-2 py-0.5 rounded-full">{p.name?.slice(0,16)}</div>
+                <div
+                  className={`pointer-events-auto select-none w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow bg-black/40 text-white transition-transform ${active ? 'animate-pulse ring-4 ring-emerald-400' : ''}`}
+                  aria-label={`Player ${p.name?.slice(0,16)}`}
+                  title={p.name?.slice(0,16)}
+                >
+                  {p.avatar ? p.avatar : (p.name?.[0] || '?')}
                 </div>
+                <div className="mt-1 text-white/90 text-xs font-semibold bg-black/40 px-2 py-0.5 rounded-full">{p.name?.slice(0,16)}</div>
               </div>
             );
           })}
@@ -283,10 +278,10 @@ export default function TablePage() {
               {/* Responsive: ~80vh tall, width maintaining 2:3 card ratio */}
               <div
                 ref={playedRef}
-                className="relative rounded shadow border overflow-hidden"
+                className="relative rounded overflow-hidden"
                 style={{ height: '80vh', width: 'calc(80vh * 0.7)', ...playedStyle }}
               >
-                <img src={playedVisual.src} alt={played.card} className="absolute inset-0 w-full h-full object-cover" />
+                <img src={playedVisual.src} alt={played.card} className="absolute inset-0 w-full h-full object-cover" onLoad={handlePlayedImageLoad} />
                 <div className="absolute inset-0 flex items-center justify-center text-white font-bold text-6xl sm:text-7xl drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
                   {playedVisual.label}
                 </div>
@@ -397,7 +392,7 @@ export default function TablePage() {
                 <span className="font-mono text-xs">Draw Deck</span>
                 <div className="relative w-32 h-48">
                   {Array.from({ length: Math.min(5, room.deckCount) }).map((_, i) => (
-                    <div key={i} className="absolute w-full h-full rounded shadow-lg overflow-hidden" style={{ transform: `translate(${i*2}px, ${i*1}px)` }}>
+                    <div key={i} className="absolute w-full h-full rounded overflow-hidden" style={{ transform: `translate(${i*2}px, ${i*1}px)` }}>
                       <Image src="/uno/uno_back.png" alt="Card Back" fill style={{ objectFit: 'cover' }} />
                     </div>
                   ))}

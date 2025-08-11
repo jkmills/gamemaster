@@ -33,7 +33,7 @@ function UnoCard({ code, large = false }: { code: string; large?: boolean }) {
     return { src, label };
   }, [code]);
   return (
-    <div className={`relative ${large ? 'w-28 h-40' : 'w-14 h-20'} rounded shadow border overflow-hidden`}>
+    <div className={`relative ${large ? 'w-28 h-40' : 'w-14 h-20'} rounded overflow-hidden`}>
       <Image src={src} alt={code} fill style={{ objectFit: 'cover' }} />
       <div className="absolute inset-0 flex items-center justify-center text-white font-bold text-base drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]">
         {label}
