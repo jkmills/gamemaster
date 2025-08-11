@@ -325,7 +325,7 @@ export default function TablePage() {
             onChange={(e) => setGameId(e.target.value)}
           >
             <option value="uno">Uno (MVP)</option>
-            {/* Flip7 temporarily disabled */}
+            <option value="flip7">Flip 7</option>
           </select>
         </label>
         <button

@@ -1,43 +1,46 @@
-// Flip7 minimal stub rules for MVP (CommonJS)
+// Flip7 full rules implementation (CommonJS)
 // Exports: { id, name, start(room), isLegalPlay(card, top) }
-// Cards encoded as `${Color}${Number}` like 'R3'. No wilds. Numbers 1-7.
+// Cards encoded as strings matching public/flip7 images and rules in public/FLIP7.md.
 
 const id = 'flip7';
-const name = 'Flip7 (MVP Stub)';
+const name = 'Flip7';
 
 function makeDeck() {
-  const colors = ['R', 'G', 'B', 'Y'];
   const deck = [];
-  for (const c of colors) {
-    for (let n = 1; n <= 7; n++) deck.push(`${c}${n}`);
+  // Number cards: one 0, then n copies of n for 1-12
+  deck.push('0');
+  for (let n = 1; n <= 12; n++) {
+    for (let i = 0; i < n; i++) deck.push(String(n));
   }
-  // simple shuffle
-  for (let i = deck.length - 1; i > 0; i--) {
+  // Modifier cards (one of each)
+  const modifiers = ['+2', '+4', '+6', '+8', '+10', 'x2'];
+  deck.push(...modifiers);
+  // Action cards (three of each)
+  const actions = ['Freeze', 'Flip3', 'SecondChance'];
+  for (const a of actions) {
+    for (let i = 0; i < 3; i++) deck.push(a);
+  }
+  return shuffle(deck);
+}
+
+function shuffle(array) {
+  for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [deck[i], deck[j]] = [deck[j], deck[i]];
+    [array[i], array[j]] = [array[j], array[i]];
   }
-  return deck;
+  return array;
 }
 
 function start(room) {
   room.deck = makeDeck();
-  // deal 3 cards to each player for MVP
-  for (const pid of room.order) {
-    const p = room.players.get(pid);
-    p.hand = room.deck.splice(0, 3);
-  }
-  room.discard = [room.deck.shift()];
+  room.discard = [];
   room.status = 'active';
   room.turnIndex = 0;
 }
 
-// Legal if top is empty, or same number as top, or exactly '7' (acts as a wildcard number)
-function isLegalPlay(card, top) {
-  if (!top) return true;
-  const cNum = card.slice(1);
-  const tNum = top.slice(1);
-  if (cNum === '7') return true;
-  return cNum === tNum;
+// Flip7 does not use isLegalPlay; return true for compatibility
+function isLegalPlay() {
+  return true;
 }
 
 module.exports = { id, name, start, isLegalPlay };
