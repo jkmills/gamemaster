@@ -443,6 +443,8 @@ function serializeRoom(room) {
     gameId: room.gameId,
     status: room.status,
     discardTop: room.discard[0] || null,
+    deckCount: room.deck?.length || 0,
+    discardCount: room.discard?.length || 0,
     playerCounts: Array.from(room.players.entries()).map(([id, p]) => ({ id, name: p.name, avatar: p.avatar || null, count: p.hand.length })),
     turn: room.order[room.turnIndex] || null,
     winner: room.winner || null,

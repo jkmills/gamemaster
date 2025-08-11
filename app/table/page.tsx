@@ -27,7 +27,7 @@ function UnoCard({ code }: { code: string }) {
     return { src, label };
   }, [code]);
   return (
-    <div className="relative w-32 h-48 rounded shadow border overflow-hidden">
+    <div className="relative w-32 h-48 rounded shadow-lg overflow-hidden">
       <Image src={src} alt={code} fill style={{ objectFit: 'cover' }} />
       <div className="absolute inset-0 flex items-center justify-center text-white font-bold text-base drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]">
         {label}
@@ -49,6 +49,8 @@ type RoomState = {
   code: string;
   status: "lobby" | "active" | "finished";
   discardTop: string | null;
+  deckCount: number;
+  discardCount: number;
   playerCounts: { id: string; name: string; avatar?: string | null; count: number }[];
   turn: string | null;
   winner: string | null;
@@ -390,15 +392,39 @@ export default function TablePage() {
                 )}
               </div>
             )}
-            <div className="text-sm flex items-center gap-2">Discard Top: <span className="font-mono">{room.discardTop ?? "—"}</span>
-              {room.discardTop && (
-                <div ref={discardRef} className="ml-2 flex flex-col items-center" aria-label={`Discard ${room.discardTop}`}>
-                  <UnoCard code={room.discardTop} />
-                  <div className="mt-1 text-[10px] leading-none font-mono text-gray-700 dark:text-gray-300" aria-hidden>
-                    {room.discardTop}
-                  </div>
+            <div className="text-sm flex items-end gap-4">
+              <div>
+                <span className="font-mono text-xs">Draw Deck</span>
+                <div className="relative w-32 h-48">
+                  {Array.from({ length: Math.min(5, room.deckCount) }).map((_, i) => (
+                    <div key={i} className="absolute w-full h-full rounded shadow-lg overflow-hidden" style={{ transform: `translate(${i*2}px, ${i*1}px)` }}>
+                      <Image src="/uno/uno_back.png" alt="Card Back" fill style={{ objectFit: 'cover' }} />
+                    </div>
+                  ))}
                 </div>
-              )}
+                <div className="mt-1 text-center text-[10px] leading-none font-mono text-gray-700 dark:text-gray-300">
+                  {room.deckCount} cards
+                </div>
+              </div>
+              <div>
+                <span className="font-mono text-xs">Discard Pile</span>
+                {room.discardTop ? (
+                  <div ref={discardRef} className="relative w-32 h-48" aria-label={`Discard ${room.discardTop}`}>
+                    {Array.from({ length: Math.min(5, room.discardCount) }).map((_, i) => (
+                      <div key={i} className="absolute w-full h-full" style={{ transform: `translate(${i*2}px, ${i*1}px)` }}>
+                        <UnoCard code={room.discardTop} />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="relative w-32 h-48 border-2 border-dashed rounded border-white/20 flex items-center justify-center">
+                    <span className="text-xs text-white/40">Empty</span>
+                  </div>
+                )}
+                <div className="mt-1 text-center text-[10px] leading-none font-mono text-gray-700 dark:text-gray-300" aria-hidden>
+                  {room.discardCount} cards
+                </div>
+              </div>
             </div>
             <div className="text-sm">Turn: <span className="font-mono">{room.turn ?? "—"}</span>{currentPlayerName ? ` – ${currentPlayerName}` : ''}</div>
             {room.status === 'finished' && (
