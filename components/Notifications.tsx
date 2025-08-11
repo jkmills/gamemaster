@@ -50,7 +50,7 @@ export function Notifications({ children }: { children: ReactNode }) {
           </div>
         ))}
       </div>
-      <div className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center">
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none flex gap-2">
         {toasts.filter(t => t.type === "draw").map((t) => (
           <div
             key={t.id}
