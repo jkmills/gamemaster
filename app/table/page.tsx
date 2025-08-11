@@ -57,6 +57,8 @@ export default function TablePage() {
   const discardRef = useRef<HTMLDivElement | null>(null);
   const playedRef = useRef<HTMLDivElement | null>(null);
   const playerAnchorsRef = useRef<Map<string, HTMLDivElement>>(new Map());
+  const [showInstructions, setShowInstructions] = useState(false);
+  const [instructions, setInstructions] = useState("");
 
   useEffect(() => {
     const s = io("/game", { path: "/socket.io" });
@@ -64,7 +66,7 @@ export default function TablePage() {
     s.on("roomState", (state: RoomState) => setRoom(state));
     s.on("cardPlayed", ({ playerId, name, card }: { playerId: string; name: string; card: string }) => {
       if (!card) return;
-      setPlayed({ playerId, name, card });
+      setPlayed({ playerId, name: name.slice(0,16), card });
       // multi-stage: from player anchor -> center (80vh) -> discard
       setPlayedStyle({ opacity: 0 });
       setTimeout(() => {
@@ -133,7 +135,7 @@ export default function TablePage() {
                 willChange: 'transform, opacity',
               });
               setTimeout(() => { setPlayed(null); setPlayedStyle(undefined); }, 950);
-            }, 300);
+            }, 600);
           });
         });
       }, 50);
@@ -151,16 +153,25 @@ export default function TablePage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (showInstructions && !instructions) {
+      fetch('/UNO.md')
+        .then(r => r.text())
+        .then(setInstructions)
+        .catch(() => setInstructions('Instructions unavailable.'));
+    }
+  }, [showInstructions, instructions]);
+
   const canStart = room && room.status === "lobby" && (room.playerCounts?.length || 0) >= 2;
   const currentPlayerName = useMemo(() => {
     if (!room?.turn) return null;
     const p = room.playerCounts?.find(p => p.id === room.turn);
-    return p?.name || room.turn;
+    return p?.name?.slice(0,16) || room.turn;
   }, [room]);
   const winnerName = useMemo(() => {
     if (!room?.winner) return null;
     const p = room.playerCounts?.find(p => p.id === room.winner);
-    return p?.name || room.winner;
+    return p?.name?.slice(0,16) || room.winner;
   }, [room]);
   const joinUrl = useMemo(() => {
     if (!room?.code) return '';
@@ -217,13 +228,13 @@ export default function TablePage() {
                 className={`${common} ${cls}`}
               >
                 <div className={`pointer-events-auto select-none flex flex-col items-center gap-1 ${active ? 'animate-pulse' : ''}`}>
-                  <div className={`w-14 h-14 rounded-full flex items-center justify-center text-3xl shadow ${active ? 'ring-4 ring-emerald-400' : ''} bg-black/40 text-white`}
-                    aria-label={`Player ${p.name}`}
-                    title={p.name}
+                  <div className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow ${active ? 'ring-4 ring-emerald-400' : ''} bg-black/40 text-white`}
+                    aria-label={`Player ${p.name?.slice(0,16)}`}
+                    title={p.name?.slice(0,16)}
                   >
                     {p.avatar ? p.avatar : (p.name?.[0] || '?')}
                   </div>
-                  <div className="text-white/90 text-xs font-semibold bg-black/40 px-2 py-0.5 rounded-full">{p.name}</div>
+                  <div className="text-white/90 text-xs font-semibold bg-black/40 px-2 py-0.5 rounded-full">{p.name?.slice(0,16)}</div>
                 </div>
               </div>
             );
@@ -332,6 +343,12 @@ export default function TablePage() {
         >
           Close Room
         </button>
+        <button
+          className="px-4 py-2 rounded bg-slate-800 text-white"
+          onClick={() => setShowInstructions(true)}
+        >
+          Instructions
+        </button>
       </div>
 
       <section className="mt-4 border rounded p-4">
@@ -376,7 +393,7 @@ export default function TablePage() {
                   const w = room.winner;
                   if (!w) return '—';
                   const p = room.playerCounts.find(p => p.id === w);
-                  return p ? `${p.name} (${w})` : w;
+                  return p ? `${p.name?.slice(0,16)} (${w})` : w;
                 })()}
               </div>
             )}
@@ -385,7 +402,7 @@ export default function TablePage() {
               <ul className="list-disc ml-6 text-sm">
                 {room.playerCounts.map((p) => (
                   <li key={p.id}>
-                    {p.name} (<span className="font-mono">{p.id}</span>): {p.count}
+                    {p.name?.slice(0,16)} (<span className="font-mono">{p.id}</span>): {p.count}
                   </li>
                 ))}
               </ul>
@@ -393,6 +410,20 @@ export default function TablePage() {
           </div>
         )}
       </section>
+      {showInstructions && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+          <div className="relative bg-white dark:bg-zinc-900 p-4 rounded max-w-3xl w-[90%] max-h-[80vh] overflow-y-auto">
+            <button
+              className="absolute top-2 right-2 text-2xl leading-none" 
+              onClick={() => setShowInstructions(false)}
+              aria-label="Close Instructions"
+            >
+              ×
+            </button>
+            <pre className="whitespace-pre-wrap text-sm">{instructions}</pre>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
