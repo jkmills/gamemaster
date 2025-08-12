@@ -70,14 +70,21 @@ function readableCard(code: string) {
 type RoomState = {
   code: string;
   gameId?: string;
-  status: "lobby" | "active" | "finished";
+  status: "lobby" | "active" | "finished" | "between";
   discardTop: string | null;
   deckCount: number;
   discardCount: number;
   playerCounts: { id: string; name: string; avatar?: string | null; count: number }[];
   turn: string | null;
   winner: string | null;
-  flip7?: { hands: { id: string; name: string; cards: string[] }[]; stayed: string[]; busted: string[] };
+  flip7?: {
+    hands: { id: string; name: string; cards: string[] }[];
+    stayed: string[];
+    busted: string[];
+    roundOver?: boolean;
+    pendingFlip3?: string | null;
+    ready?: string[];
+  };
 };
 
 type GameInfo = { id: string; name: string };
@@ -428,23 +435,30 @@ export default function TablePage() {
                 )}
               </div>
             )}
-            <div className="text-sm flex items-end gap-4">
+            <div className="text-sm">
               {room.gameId === 'flip7' ? (
-                <div>
-                  <span className="font-mono text-xs">Draw Deck</span>
-                  <div className="relative w-32 h-48">
-                    {Array.from({ length: Math.min(5, room.deckCount) }).map((_, i) => (
-                      <div key={i} className="absolute w-full h-full rounded overflow-hidden" style={{ transform: `translate(${i*2}px, ${i*1}px)` }}>
-                        <Image src="/flip7/F7_Back.png" alt="Card Back" fill style={{ objectFit: 'cover' }} />
+                <div className="flex flex-col gap-2">
+                  {room.flip7?.hands.map(p => (
+                    <div key={p.id} className="flex items-center gap-2">
+                      <div className="font-semibold">
+                        {p.name}
+                        {room.flip7?.stayed.includes(p.id) ? ' (Stayed)' : ''}
                       </div>
-                    ))}
-                  </div>
-                  <div className="mt-1 text-center text-[10px] leading-none font-mono text-gray-700 dark:text-gray-300">
-                    {room.deckCount} cards
-                  </div>
+                      <div className="relative flex gap-1">
+                        {room.flip7?.busted.includes(p.id) && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-white/70">
+                            <span className="text-red-600 font-bold">BUSTED</span>
+                          </div>
+                        )}
+                        {p.cards.map((c, i) => (
+                          <Flip7Card key={i} code={c} />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : (
-                <>
+                <div className="flex items-end gap-4">
                   <div>
                     <span className="font-mono text-xs">Draw Deck</span>
                     <div className="relative w-32 h-48">
@@ -461,7 +475,7 @@ export default function TablePage() {
                   <div>
                     <span className="font-mono text-xs">Discard Pile</span>
                     {room.discardTop ? (
-                      <div ref={discardRef} className="relative w-32 h-48" aria-label={`Discard ${room.discardTop}`}>
+                      <div ref={discardRef} className="relative w-32 h-48" aria-label={`Discard ${room.discardTop}`}> 
                         {Array.from({ length: Math.min(5, room.discardCount) }).map((_, i) => (
                           <div key={i} className="absolute w-full h-full" style={{ transform: `translate(${i*2}px, ${i*1}px)` }}>
                             <UnoCard code={room.discardTop!} />
@@ -477,7 +491,7 @@ export default function TablePage() {
                       {room.discardCount} cards
                     </div>
                   </div>
-                </>
+                </div>
               )}
             </div>
             <div className="text-sm">Turn: <span className="font-mono">{room.turn ?? "—"}</span>{currentPlayerName ? ` – ${currentPlayerName}` : ''}</div>
@@ -491,29 +505,9 @@ export default function TablePage() {
                 })()}
               </div>
             )}
-            <div>
-              <h4 className="font-medium">Players</h4>
-              {room.gameId === 'flip7' ? (
-                <div className="flex flex-wrap gap-4 mt-2">
-                  {room.flip7?.hands.map(p => (
-                    <div key={p.id}>
-                      <div className="font-semibold">
-                        {p.name}
-                        {room.flip7?.stayed.includes(p.id)
-                          ? ' (Stayed)'
-                          : room.flip7?.busted.includes(p.id)
-                          ? ' (Busted)'
-                          : ''}
-                      </div>
-                      <div className="flex gap-1 mt-1">
-                        {p.cards.map((c, i) => (
-                          <Flip7Card key={i} code={c} />
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
+            {room.gameId !== 'flip7' && (
+              <div>
+                <h4 className="font-medium">Players</h4>
                 <table className="w-full text-sm mt-2">
                   <thead>
                     <tr className="text-left">
@@ -532,8 +526,8 @@ export default function TablePage() {
                     ))}
                   </tbody>
                 </table>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         )}
       </section>
