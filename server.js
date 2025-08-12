@@ -88,7 +88,10 @@ app.prepare().then(() => {
       room.winner = null;
       room.status = 'lobby';
       room.log = [];
-      if (typeof game.start === 'function') {
+      if (room.gameId === 'flip7') {
+        room.flip7 = { scores: new Map() };
+        startFlip7Round(io, room);
+      } else if (typeof game.start === 'function') {
         game.start(room);
       } else {
         room.deck = makeDemoDeck();
@@ -143,9 +146,11 @@ app.prepare().then(() => {
       if (!room || room.gameId !== 'flip7') return;
       const f = room.flip7;
       if (!f || f.pendingFlip3 !== playerId) return;
-      if (f.frozen?.has(targetId)) return;
+      if (f.frozen?.has(targetId) || f.busted.has(targetId)) return;
+      let drew = 0;
       for (let i = 0; i < 3; i++) {
         drawFlip7Card(room, targetId);
+        drew++;
         const t = findSocketByPlayer(io, roomCode, targetId);
         if (t) t.emit('playerHand', { hand: room.players.get(targetId)?.hand || [] });
         if (f.busted.has(targetId) || f.roundOver) break;
@@ -154,6 +159,9 @@ app.prepare().then(() => {
           return;
         }
       }
+      const srcName = room.players.get(playerId)?.name || playerId;
+      const targetSock = findSocketByPlayer(io, roomCode, targetId);
+      if (targetSock) targetSock.emit('notice', { message: `${srcName} played Flip 3 on you. You drew ${drew} card${drew === 1 ? '' : 's'}.` });
       f.pendingFlip3 = null;
       advanceFlip7Turn(room);
       maybeFinishFlip7Round(io, room);
@@ -165,7 +173,7 @@ app.prepare().then(() => {
       if (!room || room.gameId !== 'flip7') return;
       const f = room.flip7;
       if (!f || f.pendingFreeze !== playerId) return;
-      if (f.frozen.has(targetId)) return;
+      if (f.frozen.has(targetId) || f.busted.has(targetId)) return;
       const src = room.players.get(playerId);
       if (src) {
         const idx = src.hand.indexOf('Freeze');
@@ -181,6 +189,9 @@ app.prepare().then(() => {
       }
       f.stayed.add(targetId);
       f.frozen.add(targetId);
+      const srcName = room.players.get(playerId)?.name || playerId;
+      const targetSock = findSocketByPlayer(io, roomCode, targetId);
+      if (targetSock) targetSock.emit('notice', { message: `${srcName} froze you.` });
       f.pendingFreeze = null;
       advanceFlip7Turn(room);
       maybeFinishFlip7Round(io, room);
@@ -222,16 +233,21 @@ app.prepare().then(() => {
       if (!p) return;
       const scIdx = p.hand.indexOf('SecondChance');
       if (scIdx !== -1) p.hand.splice(scIdx, 1);
-      if (targetId &&
-          targetId !== playerId &&
-          !f.secondChance.has(targetId) &&
-          !f.frozen.has(targetId)) {
+      if (
+        targetId &&
+        targetId !== playerId &&
+        !f.secondChance.has(targetId) &&
+        !f.frozen.has(targetId) &&
+        !f.busted.has(targetId)
+      ) {
         const tp = room.players.get(targetId);
         if (tp) {
           tp.hand.push('SecondChance');
           f.secondChance.add(targetId);
           const ts = findSocketByPlayer(io, roomCode, targetId);
           if (ts) ts.emit('playerHand', { hand: tp.hand });
+          const srcName = room.players.get(playerId)?.name || playerId;
+          if (ts) ts.emit('notice', { message: `${srcName} gave you a Second Chance.` });
         }
       }
       const srcSock = findSocketByPlayer(io, roomCode, playerId);
@@ -691,7 +707,11 @@ function drawFlip7Card(room, playerId) {
   } else if (card === 'SecondChance') {
     if (f.secondChance.has(playerId)) {
       const eligible = room.order.filter(
-        pid => pid !== playerId && !f.secondChance.has(pid) && !f.frozen.has(pid)
+        pid =>
+          pid !== playerId &&
+          !f.secondChance.has(pid) &&
+          !f.frozen.has(pid) &&
+          !f.busted.has(pid)
       );
       if (eligible.length) {
         f.pendingSecondChanceGift = playerId;
