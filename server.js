@@ -143,6 +143,7 @@ app.prepare().then(() => {
       if (!room || room.gameId !== 'flip7') return;
       const f = room.flip7;
       if (!f || f.pendingFlip3 !== playerId) return;
+      if (f.frozen?.has(targetId)) return;
       for (let i = 0; i < 3; i++) {
         drawFlip7Card(room, targetId);
         const t = findSocketByPlayer(io, roomCode, targetId);
@@ -164,7 +165,22 @@ app.prepare().then(() => {
       if (!room || room.gameId !== 'flip7') return;
       const f = room.flip7;
       if (!f || f.pendingFreeze !== playerId) return;
+      if (f.frozen.has(targetId)) return;
+      const src = room.players.get(playerId);
+      if (src) {
+        const idx = src.hand.indexOf('Freeze');
+        if (idx !== -1) src.hand.splice(idx, 1);
+        const ss = findSocketByPlayer(io, roomCode, playerId);
+        if (ss) ss.emit('playerHand', { hand: src.hand });
+      }
+      const tgt = room.players.get(targetId);
+      if (tgt) {
+        tgt.hand.push('Freeze');
+        const ts = findSocketByPlayer(io, roomCode, targetId);
+        if (ts) ts.emit('playerHand', { hand: tgt.hand });
+      }
       f.stayed.add(targetId);
+      f.frozen.add(targetId);
       f.pendingFreeze = null;
       advanceFlip7Turn(room);
       maybeFinishFlip7Round(io, room);
@@ -206,7 +222,10 @@ app.prepare().then(() => {
       if (!p) return;
       const scIdx = p.hand.indexOf('SecondChance');
       if (scIdx !== -1) p.hand.splice(scIdx, 1);
-      if (targetId && targetId !== playerId && !f.secondChance.has(targetId)) {
+      if (targetId &&
+          targetId !== playerId &&
+          !f.secondChance.has(targetId) &&
+          !f.frozen.has(targetId)) {
         const tp = room.players.get(targetId);
         if (tp) {
           tp.hand.push('SecondChance');
@@ -338,6 +357,7 @@ app.prepare().then(() => {
         room.flip7.uniques = new Map(); // pid -> Set of numbers as strings
         room.flip7.stayed = new Set();
         room.flip7.busted = new Set();
+        room.flip7.frozen = new Set();
         room.flip7.roundOver = false;
         // per-round scoring pieces
         room.flip7.numScore = new Map(); // pid -> sum of number cards
@@ -611,6 +631,7 @@ function serializeFlip7(room) {
   const roundScore = Array.from(f.roundScore.entries()).map(([id, score]) => ({ id, name: room.players.get(id)?.name || id, score }));
   const stayed = Array.from(f.stayed.values());
   const busted = Array.from(f.busted.values());
+  const frozen = Array.from(f.frozen.values());
   const uniquesCount = Array.from(f.uniques.entries()).map(([id, set]) => ({ id, name: room.players.get(id)?.name || id, count: set.size }));
   const hands = Array.from(room.players.entries()).map(([id, p]) => ({ id, name: p.name, cards: p.hand }));
   const secondChance = Array.from(f.secondChance.values());
@@ -620,6 +641,7 @@ function serializeFlip7(room) {
     roundScore,
     stayed,
     busted,
+    frozen,
     uniquesCount,
     roundOver: !!f.roundOver,
     hands,
@@ -668,7 +690,9 @@ function drawFlip7Card(room, playerId) {
     f.modScore.set(playerId, (f.modScore.get(playerId) || 0) + mod);
   } else if (card === 'SecondChance') {
     if (f.secondChance.has(playerId)) {
-      const eligible = room.order.filter(pid => pid !== playerId && !f.secondChance.has(pid));
+      const eligible = room.order.filter(
+        pid => pid !== playerId && !f.secondChance.has(pid) && !f.frozen.has(pid)
+      );
       if (eligible.length) {
         f.pendingSecondChanceGift = playerId;
       } else {
@@ -760,6 +784,7 @@ function startFlip7Round(io, room) {
   f.uniques = new Map();
   f.stayed = new Set();
   f.busted = new Set();
+  f.frozen = new Set();
   f.roundScore = new Map();
   f.numScore = new Map();
   f.modScore = new Map();
