@@ -51,9 +51,9 @@
 
 ## Action Cards
 
-* **Freeze!** — Target player banks points and is out of the round.
+* **Freeze!** — When drawn, choose any player (including yourself) to bank points and sit out the round.
 * **Flip Three!** — Target player draws three cards in a row, resolving them in order. Bust or Flip 7 ends this sequence early.
-* **Second Chance** — Keeps you from busting once by discarding both the duplicate Number card and this card. Only one allowed per player.
+* **Second Chance** — Keeps you from busting once by discarding both the duplicate Number card and this card when you press **Use Your Second Chance**. Only one allowed per player; extra copies must be given to someone without one or discarded if none.
 
 ---
 
