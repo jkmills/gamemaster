@@ -42,6 +42,28 @@ function UnoCard({ code, large = false }: { code: string; large?: boolean }) {
   );
 }
 
+function Flip7Card({ code, large = false }: { code: string; large?: boolean }) {
+  const src = useMemo(() => {
+    const map: Record<string, string> = {
+      Freeze: '/flip7/F7_Freeze.png',
+      Flip3: '/flip7/F7_Flip3.png',
+      SecondChance: '/flip7/F7_SecondChance.png',
+      x2: '/flip7/F7_Mult2.png',
+      '+2': '/flip7/F7_Plus2.png',
+      '+4': '/flip7/F7_Plus4.png',
+      '+6': '/flip7/F7_Plus6.png',
+      '+8': '/flip7/F7_Plus8.png',
+      '+10': '/flip7/F7_Plus10.png',
+    };
+    return map[code] || `/flip7/F7_${code}.png`;
+  }, [code]);
+  return (
+    <div className={`relative ${large ? 'w-28 h-40' : 'w-14 h-20'} rounded overflow-hidden`}>
+      <Image src={src} alt={code} fill style={{ objectFit: 'cover' }} />
+    </div>
+  );
+}
+
 function isLegalPlay(card: string, top: string | null) {
   if (!top) return true;
   if (card === 'W' || card === 'W+4') return true;
@@ -74,6 +96,7 @@ type RoomState = {
     busted: string[];
     uniquesCount: { id: string; name: string; count: number }[];
     roundOver: boolean;
+    hands?: { id: string; name: string; cards: string[] }[];
   };
 };
 
@@ -388,6 +411,14 @@ export default function MobilePage() {
 
           {room?.gameId === 'flip7' ? (
             <>
+              <div>
+                <h3 className="font-medium mb-1">My Cards</h3>
+                <div className="flex flex-wrap gap-3">
+                  {hand.map((c, idx) => (
+                    <Flip7Card key={`${c}-${idx}`} code={c} />
+                  ))}
+                </div>
+              </div>
               <div>
                 <h3 className="font-medium mb-1">Round</h3>
                 <div className="text-xs">Stayed: {room.flip7?.stayed.join(', ') || '—'}</div>
