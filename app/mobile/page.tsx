@@ -122,6 +122,14 @@ export default function MobilePage() {
   const [showPlayable, setShowPlayable] = useState(false);
 
   useEffect(() => {
+    const el = document.querySelector('.container');
+    if (!el) return;
+    if (room?.gameId === 'flip7') el.classList.add('wide');
+    else el.classList.remove('wide');
+    return () => el.classList.remove('wide');
+  }, [room?.gameId]);
+
+  useEffect(() => {
     // hydrate from localStorage and URL (?code=...)
     try {
       const saved = JSON.parse(localStorage.getItem("gm.session") || "null");
@@ -457,7 +465,11 @@ export default function MobilePage() {
                   <h3 className="font-medium mb-1">Choose player for Flip3</h3>
                   <div className="flex flex-wrap gap-2">
                     {room.flip7?.hands
-                      ?.filter(p => !(room.flip7?.frozen || []).includes(p.id))
+                      ?.filter(
+                        p =>
+                          !(room.flip7?.frozen || []).includes(p.id) &&
+                          !(room.flip7?.busted || []).includes(p.id)
+                      )
                       .map(p => (
                         <button
                           key={p.id}
@@ -475,7 +487,11 @@ export default function MobilePage() {
                   <h3 className="font-medium mb-1">Choose player to Freeze</h3>
                   <div className="flex flex-wrap gap-2">
                     {room.flip7?.hands
-                      ?.filter(p => !(room.flip7?.frozen || []).includes(p.id))
+                      ?.filter(
+                        p =>
+                          !(room.flip7?.frozen || []).includes(p.id) &&
+                          !(room.flip7?.busted || []).includes(p.id)
+                      )
                       .map(p => (
                         <button
                           key={p.id}
@@ -500,9 +516,13 @@ export default function MobilePage() {
                   <h3 className="font-medium mb-1">Give Second Chance to</h3>
                   <div className="flex flex-wrap gap-2">
                     {room.flip7?.hands
-                      ?.filter(p => p.id !== playerId &&
-                        !(room.flip7?.secondChance || []).includes(p.id) &&
-                        !(room.flip7?.frozen || []).includes(p.id))
+                      ?.filter(
+                        p =>
+                          p.id !== playerId &&
+                          !(room.flip7?.secondChance || []).includes(p.id) &&
+                          !(room.flip7?.frozen || []).includes(p.id) &&
+                          !(room.flip7?.busted || []).includes(p.id)
+                      )
                       .map(p => (
                         <button key={p.id} className="px-2 py-1 rounded bg-amber-600 text-white" onClick={() => giftSecondChance(p.id)}>
                           {p.name}

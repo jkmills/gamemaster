@@ -246,6 +246,14 @@ export default function TablePage() {
     const p = room.playerCounts?.find(p => p.id === room.winner);
     return p?.name?.slice(0,16) || room.winner;
   }, [room]);
+
+  useEffect(() => {
+    const el = document.querySelector('.container');
+    if (!el) return;
+    if (room?.gameId === 'flip7') el.classList.add('wide');
+    else el.classList.remove('wide');
+    return () => el.classList.remove('wide');
+  }, [room?.gameId]);
   const joinUrl = useMemo(() => {
     if (!room?.code) return '';
     if (typeof window === 'undefined') return '';
