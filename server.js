@@ -110,15 +110,18 @@ app.prepare().then(() => {
       if (room.order[room.turnIndex] !== playerId) return;
       const f = room.flip7;
       if (!f || f.roundOver) return;
+      if (f.pendingFlip3) return;
       if (f.stayed.has(playerId) || f.busted.has(playerId)) return;
       // draw and apply card effects
       drawFlip7Card(room, playerId);
       const target = findSocketByPlayer(io, roomCode, playerId);
       if (target) target.emit('playerHand', { hand: room.players.get(playerId)?.hand || [] });
-      // advance turn to next non-stayed/non-busted player
-      advanceFlip7Turn(room);
-      // if round end conditions met, score and maybe finish game
-      maybeFinishFlip7Round(io, room);
+      if (!f.pendingFlip3) {
+        // advance turn to next non-stayed/non-busted player
+        advanceFlip7Turn(room);
+        // if round end conditions met, score and maybe finish game
+        maybeFinishFlip7Round(io, room);
+      }
       io.of('/game').to(`instance:${roomCode}`).emit('roomState', serializeRoom(room));
     });
 
@@ -128,9 +131,43 @@ app.prepare().then(() => {
       if (room.order[room.turnIndex] !== playerId) return;
       const f = room.flip7;
       if (!f || f.roundOver) return;
+      if (f.pendingFlip3) return;
       f.stayed.add(playerId);
       advanceFlip7Turn(room);
       maybeFinishFlip7Round(io, room);
+      io.of('/game').to(`instance:${roomCode}`).emit('roomState', serializeRoom(room));
+    });
+
+    socket.on('flip7:flip3Target', ({ roomCode, playerId, targetId }) => {
+      const room = rooms.get(roomCode);
+      if (!room || room.gameId !== 'flip7') return;
+      const f = room.flip7;
+      if (!f || f.pendingFlip3 !== playerId) return;
+      for (let i = 0; i < 3; i++) {
+        drawFlip7Card(room, targetId);
+        const t = findSocketByPlayer(io, roomCode, targetId);
+        if (t) t.emit('playerHand', { hand: room.players.get(targetId)?.hand || [] });
+        if (f.busted.has(targetId) || f.roundOver) break;
+        if (f.pendingFlip3 && f.pendingFlip3 !== playerId) {
+          io.of('/game').to(`instance:${roomCode}`).emit('roomState', serializeRoom(room));
+          return;
+        }
+      }
+      f.pendingFlip3 = null;
+      advanceFlip7Turn(room);
+      maybeFinishFlip7Round(io, room);
+      io.of('/game').to(`instance:${roomCode}`).emit('roomState', serializeRoom(room));
+    });
+
+    socket.on('flip7:startNextRound', ({ roomCode, playerId }) => {
+      const room = rooms.get(roomCode);
+      if (!room || room.status !== 'between' || room.gameId !== 'flip7') return;
+      const f = room.flip7;
+      if (!f) return;
+      f.ready.add(playerId);
+      if (f.ready.size >= room.order.length) {
+        startFlip7Round(io, room);
+      }
       io.of('/game').to(`instance:${roomCode}`).emit('roomState', serializeRoom(room));
     });
 
@@ -244,6 +281,8 @@ app.prepare().then(() => {
         room.flip7.x2 = new Set(); // players holding x2
         room.flip7.secondChance = new Set(); // players holding Second Chance
         room.flip7.roundScore = new Map(); // pid -> running total after modifiers/multipliers
+        room.flip7.ready = new Set();
+        room.flip7.pendingFlip3 = null;
         // cumulative scores across rounds
         room.flip7.scores = room.flip7.scores || new Map();
         // initialize for any missing players this round
@@ -507,7 +546,8 @@ function serializeFlip7(room) {
   const busted = Array.from(f.busted.values());
   const uniquesCount = Array.from(f.uniques.entries()).map(([id, set]) => ({ id, name: room.players.get(id)?.name || id, count: set.size }));
   const hands = Array.from(room.players.entries()).map(([id, p]) => ({ id, name: p.name, cards: p.hand }));
-  return { scores, roundScore, stayed, busted, uniquesCount, roundOver: !!f.roundOver, hands };
+  const ready = Array.from(f.ready || []);
+  return { scores, roundScore, stayed, busted, uniquesCount, roundOver: !!f.roundOver, hands, pendingFlip3: f.pendingFlip3 || null, ready };
 }
 
 function drawFlip7Card(room, playerId) {
@@ -525,6 +565,7 @@ function drawFlip7Card(room, playerId) {
         f.secondChance.delete(playerId);
       } else {
         f.busted.add(playerId);
+        f.roundScore.set(playerId, 0);
         return;
       }
     } else {
@@ -543,10 +584,7 @@ function drawFlip7Card(room, playerId) {
   } else if (card === 'Freeze') {
     f.stayed.add(playerId);
   } else if (card === 'Flip3') {
-    for (let i = 0; i < 3; i++) {
-      drawFlip7Card(room, playerId);
-      if (f.busted.has(playerId) || f.roundOver) break;
-    }
+    f.pendingFlip3 = playerId;
   }
   const base = f.numScore.get(playerId) || 0;
   const mod = f.modScore.get(playerId) || 0;
@@ -578,6 +616,10 @@ function maybeFinishFlip7Round(io, room) {
   if (!f.roundOver && !allDone) return;
   // finalize round scores
   for (const [pid, set] of f.uniques.entries()) {
+    if (f.busted.has(pid)) {
+      f.roundScore.set(pid, 0);
+      continue;
+    }
     const base = f.numScore.get(pid) || 0;
     const mod = f.modScore.get(pid) || 0;
     let total = base * (f.x2.has(pid) ? 2 : 1) + mod;
@@ -602,18 +644,22 @@ function maybeFinishFlip7Round(io, room) {
     room.winner = winner;
     return;
   }
-  // start next round: rebuild deck and reset per-round
+  room.status = 'between';
+  f.ready = new Set();
+}
+
+function startFlip7Round(io, room) {
+  const f = room.flip7;
+  if (!f) return;
   const game = require('./games').games[room.gameId];
   if (game && typeof game.start === 'function') {
     game.start(room);
   } else {
-    // fallback deck reset
     room.deck = makeDemoDeck();
     room.discard = [room.deck.shift()];
     room.status = 'active';
     room.turnIndex = 0;
   }
-  // reset per-round structures
   f.uniques = new Map();
   f.stayed = new Set();
   f.busted = new Set();
@@ -623,6 +669,8 @@ function maybeFinishFlip7Round(io, room) {
   f.x2 = new Set();
   f.secondChance = new Set();
   f.roundOver = false;
+  f.pendingFlip3 = null;
+  f.ready = new Set();
   for (const pid of room.order) {
     f.uniques.set(pid, new Set());
     f.numScore.set(pid, 0);
@@ -635,4 +683,5 @@ function maybeFinishFlip7Round(io, room) {
     if (target) target.emit('playerHand', { hand: room.players.get(pid)?.hand || [] });
   }
   advanceFlip7Turn(room);
+  room.status = 'active';
 }
