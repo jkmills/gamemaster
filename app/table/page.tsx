@@ -450,19 +450,19 @@ export default function TablePage() {
                         {room.flip7?.stayed.includes(p.id) ? ' (Stayed)' : ''}
                       </div>
                       <div className="relative flex gap-1">
+                        {p.cards.map((c, i) => (
+                          <Flip7Card key={i} code={c} />
+                        ))}
                         {room.flip7?.busted.includes(p.id) && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-white/70">
+                          <div className="absolute inset-0 flex items-center justify-center bg-white/70 z-10">
                             <span className="text-red-600 font-bold">BUSTED</span>
                           </div>
                         )}
                         {(room.flip7?.frozen || []).includes(p.id) && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-white/70">
+                          <div className="absolute inset-0 flex items-center justify-center bg-white/70 z-10">
                             <span className="text-blue-600 font-bold">FROZEN</span>
                           </div>
                         )}
-                        {p.cards.map((c, i) => (
-                          <Flip7Card key={i} code={c} />
-                        ))}
                       </div>
                     </div>
                   ))}
