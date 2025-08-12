@@ -45,7 +45,6 @@
 
 * You bust if you draw a Number card with a value you already have.
 * Action and Modifier cards do not cause busts.
-* If you bust, you score 0 points for that round.
 
 ---
 
@@ -76,8 +75,6 @@ The round ends when:
 
 1. All players have stayed or busted.
 2. A player flips 7 unique Number cards.
-
-After scoring, the next round begins once all players press **Start Next Round** on their devices.
 
 ---
 
