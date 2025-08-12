@@ -119,13 +119,7 @@ app.prepare().then(() => {
       drawFlip7Card(room, playerId);
       const target = findSocketByPlayer(io, roomCode, playerId);
       if (target) target.emit('playerHand', { hand: room.players.get(playerId)?.hand || [] });
-      if (!f.pendingFlip3 && !f.pendingFreeze && !f.pendingSecondChance && !f.pendingSecondChanceGift) {
-        // advance turn to next non-stayed/non-busted player
-        advanceFlip7Turn(room);
-        // if round end conditions met, score and maybe finish game
-        maybeFinishFlip7Round(io, room);
-      }
-      io.of('/game').to(`instance:${roomCode}`).emit('roomState', serializeRoom(room));
+      continueFlip3(io, room);
     });
 
     socket.on('flip7:stay', ({ roomCode, playerId }) => {
@@ -147,25 +141,12 @@ app.prepare().then(() => {
       const f = room.flip7;
       if (!f || f.pendingFlip3 !== playerId) return;
       if (f.frozen?.has(targetId) || f.busted.has(targetId)) return;
-      let drew = 0;
-      for (let i = 0; i < 3; i++) {
-        drawFlip7Card(room, targetId);
-        drew++;
-        const t = findSocketByPlayer(io, roomCode, targetId);
-        if (t) t.emit('playerHand', { hand: room.players.get(targetId)?.hand || [] });
-        if (f.busted.has(targetId) || f.roundOver) break;
-        if (f.pendingFlip3 && f.pendingFlip3 !== playerId) {
-          io.of('/game').to(`instance:${roomCode}`).emit('roomState', serializeRoom(room));
-          return;
-        }
-      }
-      const srcName = room.players.get(playerId)?.name || playerId;
-      const targetSock = findSocketByPlayer(io, roomCode, targetId);
-      if (targetSock) targetSock.emit('notice', { message: `${srcName} played Flip 3 on you. You drew ${drew} card${drew === 1 ? '' : 's'}.` });
+      if (!f.flip3Stack || !f.flip3Stack.length) return;
+      const action = f.flip3Stack[f.flip3Stack.length - 1];
+      if (action.actor !== playerId) return;
+      action.target = targetId;
       f.pendingFlip3 = null;
-      advanceFlip7Turn(room);
-      maybeFinishFlip7Round(io, room);
-      io.of('/game').to(`instance:${roomCode}`).emit('roomState', serializeRoom(room));
+      continueFlip3(io, room);
     });
 
     socket.on('flip7:freezeTarget', ({ roomCode, playerId, targetId }) => {
@@ -193,9 +174,7 @@ app.prepare().then(() => {
       const targetSock = findSocketByPlayer(io, roomCode, targetId);
       if (targetSock) targetSock.emit('notice', { message: `${srcName} froze you.` });
       f.pendingFreeze = null;
-      advanceFlip7Turn(room);
-      maybeFinishFlip7Round(io, room);
-      io.of('/game').to(`instance:${roomCode}`).emit('roomState', serializeRoom(room));
+      continueFlip3(io, room);
     });
 
     socket.on('flip7:useSecondChance', ({ roomCode, playerId }) => {
@@ -219,9 +198,7 @@ app.prepare().then(() => {
       const mod = f.modScore.get(playerId) || 0;
       const total = base * (f.x2.has(playerId) ? 2 : 1) + mod;
       f.roundScore.set(playerId, total);
-      advanceFlip7Turn(room);
-      maybeFinishFlip7Round(io, room);
-      io.of('/game').to(`instance:${roomCode}`).emit('roomState', serializeRoom(room));
+      continueFlip3(io, room);
     });
 
     socket.on('flip7:giftSecondChance', ({ roomCode, playerId, targetId }) => {
@@ -253,9 +230,7 @@ app.prepare().then(() => {
       const srcSock = findSocketByPlayer(io, roomCode, playerId);
       if (srcSock) srcSock.emit('playerHand', { hand: p.hand });
       f.pendingSecondChanceGift = null;
-      advanceFlip7Turn(room);
-      maybeFinishFlip7Round(io, room);
-      io.of('/game').to(`instance:${roomCode}`).emit('roomState', serializeRoom(room));
+      continueFlip3(io, room);
     });
 
     socket.on('flip7:startNextRound', ({ roomCode, playerId }) => {
@@ -383,6 +358,7 @@ app.prepare().then(() => {
         room.flip7.roundScore = new Map(); // pid -> running total after modifiers/multipliers
         room.flip7.ready = new Set();
         room.flip7.pendingFlip3 = null;
+        room.flip7.flip3Stack = [];
         room.flip7.pendingFreeze = null;
         room.flip7.pendingSecondChance = null;
         room.flip7.pendingSecondChanceGift = null;
@@ -725,12 +701,63 @@ function drawFlip7Card(room, playerId) {
   } else if (card === 'Freeze') {
     f.pendingFreeze = playerId;
   } else if (card === 'Flip3') {
+    f.flip3Stack = f.flip3Stack || [];
+    f.flip3Stack.push({ actor: playerId, target: null, remaining: 3, drew: 0 });
     f.pendingFlip3 = playerId;
   }
   const base = f.numScore.get(playerId) || 0;
   const mod = f.modScore.get(playerId) || 0;
   const total = base * (f.x2.has(playerId) ? 2 : 1) + mod;
   f.roundScore.set(playerId, total);
+}
+
+function continueFlip3(io, room) {
+  const f = room.flip7;
+  if (!f) return;
+  if (!f.flip3Stack || !f.flip3Stack.length) {
+    if (f.pendingFlip3 || f.pendingFreeze || f.pendingSecondChance || f.pendingSecondChanceGift) {
+      io.of('/game').to(`instance:${room.code}`).emit('roomState', serializeRoom(room));
+      return;
+    }
+    advanceFlip7Turn(room);
+    maybeFinishFlip7Round(io, room);
+    io.of('/game').to(`instance:${room.code}`).emit('roomState', serializeRoom(room));
+    return;
+  }
+  while (f.flip3Stack.length) {
+    const action = f.flip3Stack[f.flip3Stack.length - 1];
+    if (!action.target) {
+      f.pendingFlip3 = action.actor;
+      io.of('/game').to(`instance:${room.code}`).emit('roomState', serializeRoom(room));
+      return;
+    }
+    f.pendingFlip3 = null;
+    while (action.remaining > 0) {
+      drawFlip7Card(room, action.target);
+      action.drew++;
+      action.remaining--;
+      const t = findSocketByPlayer(io, room.code, action.target);
+      if (t) t.emit('playerHand', { hand: room.players.get(action.target)?.hand || [] });
+      if (f.busted.has(action.target) || f.roundOver) break;
+      if (
+        (f.flip3Stack[f.flip3Stack.length - 1] !== action) ||
+        f.pendingFreeze ||
+        f.pendingSecondChance ||
+        f.pendingSecondChanceGift
+      ) {
+        io.of('/game').to(`instance:${room.code}`).emit('roomState', serializeRoom(room));
+        return;
+      }
+    }
+    const srcName = room.players.get(action.actor)?.name || action.actor;
+    const targetSock = findSocketByPlayer(io, room.code, action.target);
+    if (targetSock) targetSock.emit('notice', { message: `${srcName} played Flip 3 on you. You drew ${action.drew} card${action.drew === 1 ? '' : 's'}.` });
+    f.flip3Stack.pop();
+  }
+  f.pendingFlip3 = null;
+  advanceFlip7Turn(room);
+  maybeFinishFlip7Round(io, room);
+  io.of('/game').to(`instance:${room.code}`).emit('roomState', serializeRoom(room));
 }
 
 function advanceFlip7Turn(room) {
@@ -812,6 +839,7 @@ function startFlip7Round(io, room) {
   f.secondChance = new Set();
   f.roundOver = false;
   f.pendingFlip3 = null;
+  f.flip3Stack = [];
   f.pendingFreeze = null;
   f.pendingSecondChance = null;
   f.pendingSecondChanceGift = null;
