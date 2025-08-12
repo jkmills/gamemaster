@@ -120,6 +120,7 @@ export default function MobilePage() {
   const avatarOptions = useMemo(() => ['😀','😎','🐱','🐶','🦊','🐼','🐸','🐵','🐧','🐯','🐻','🐨','🦄','🐲','🚀','🎩'], []);
   const [avatar, setAvatar] = useState<string>(avatarOptions[0]);
   const [showPlayable, setShowPlayable] = useState(false);
+  const [nextRoundCooldown, setNextRoundCooldown] = useState(false);
 
   useEffect(() => {
     const el = document.querySelector('.container');
@@ -288,6 +289,16 @@ export default function MobilePage() {
     setHand([]);
     try { localStorage.removeItem("gm.session"); } catch {}
   };
+
+  useEffect(() => {
+    if (room?.status === 'between') {
+      setNextRoundCooldown(true);
+      const t = setTimeout(() => setNextRoundCooldown(false), 10000);
+      return () => clearTimeout(t);
+    } else {
+      setNextRoundCooldown(false);
+    }
+  }, [room?.status]);
 
   return (
     <>
@@ -536,7 +547,11 @@ export default function MobilePage() {
                   {room.flip7?.ready?.includes(playerId) ? (
                     <span className="px-4 py-2">Waiting for others...</span>
                   ) : (
-                    <button className="px-4 py-2 rounded bg-green-600 text-white" onClick={startNextRound}>
+                    <button
+                      className="px-4 py-2 rounded bg-green-600 text-white disabled:opacity-50"
+                      disabled={nextRoundCooldown}
+                      onClick={startNextRound}
+                    >
                       Start Next Round
                     </button>
                   )}
