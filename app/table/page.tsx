@@ -81,6 +81,7 @@ type RoomState = {
     hands: { id: string; name: string; cards: string[] }[];
     stayed: string[];
     busted: string[];
+    frozen: string[];
     roundOver?: boolean;
     pendingFlip3?: string | null;
     pendingFreeze?: string | null;
@@ -452,6 +453,11 @@ export default function TablePage() {
                         {room.flip7?.busted.includes(p.id) && (
                           <div className="absolute inset-0 flex items-center justify-center bg-white/70">
                             <span className="text-red-600 font-bold">BUSTED</span>
+                          </div>
+                        )}
+                        {(room.flip7?.frozen || []).includes(p.id) && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-white/70">
+                            <span className="text-blue-600 font-bold">FROZEN</span>
                           </div>
                         )}
                         {p.cards.map((c, i) => (

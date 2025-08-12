@@ -94,6 +94,7 @@ type RoomState = {
     roundScore: { id: string; name: string; score: number }[];
     stayed: string[];
     busted: string[];
+    frozen: string[];
     uniquesCount: { id: string; name: string; count: number }[];
     roundOver: boolean;
     hands?: { id: string; name: string; cards: string[] }[];
@@ -426,20 +427,26 @@ export default function MobilePage() {
                 <h3 className="font-medium mb-1">My Cards</h3>
                 <div className="relative">
                   <div className="flex flex-wrap gap-3 opacity-100">
-                    {hand.map((c, idx) => (
-                      <Flip7Card key={`${c}-${idx}`} code={c} />
-                    ))}
-                  </div>
-                  {room.flip7?.busted.includes(playerId) && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-white/70">
-                      <span className="text-red-600 font-bold text-3xl">BUSTED</span>
-                    </div>
-                  )}
+                  {hand.map((c, idx) => (
+                    <Flip7Card key={`${c}-${idx}`} code={c} />
+                  ))}
                 </div>
+                {room.flip7?.busted.includes(playerId) && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/70">
+                    <span className="text-red-600 font-bold text-3xl">BUSTED</span>
+                  </div>
+                )}
+                {(room.flip7?.frozen || []).includes(playerId) && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/70">
+                    <span className="text-blue-600 font-bold text-3xl">FROZEN</span>
+                  </div>
+                )}
               </div>
-              <div>
-                <h3 className="font-medium mb-1">Round</h3>
+            </div>
+            <div>
+              <h3 className="font-medium mb-1">Round</h3>
                 <div className="text-xs">Stayed: {room.flip7?.stayed.join(', ') || '—'}</div>
+                <div className="text-xs">Frozen: {(room.flip7?.frozen || []).join(', ') || '—'}</div>
                 <div className="text-xs">Busted: {room.flip7?.busted.join(', ') || '—'}</div>
                 <div className="mt-1 text-xs">Uniques: {room.flip7?.uniquesCount.map(u => `${u.name}:${u.count}`).join(' | ') || '—'}</div>
                 <div className="mt-1 text-xs">Round Scores: {room.flip7?.roundScore.map(s => `${s.name}:${s.score}`).join(' | ') || '—'}</div>
@@ -449,11 +456,17 @@ export default function MobilePage() {
                 <div className="mt-2">
                   <h3 className="font-medium mb-1">Choose player for Flip3</h3>
                   <div className="flex flex-wrap gap-2">
-                    {room.flip7?.hands?.map(p => (
-                      <button key={p.id} className="px-2 py-1 rounded bg-amber-600 text-white" onClick={() => flip3Target(p.id)}>
-                        {p.name}
-                      </button>
-                    ))}
+                    {room.flip7?.hands
+                      ?.filter(p => !(room.flip7?.frozen || []).includes(p.id))
+                      .map(p => (
+                        <button
+                          key={p.id}
+                          className="px-2 py-1 rounded bg-amber-600 text-white"
+                          onClick={() => flip3Target(p.id)}
+                        >
+                          {p.name}
+                        </button>
+                      ))}
                   </div>
                 </div>
               )}
@@ -461,11 +474,17 @@ export default function MobilePage() {
                 <div className="mt-2">
                   <h3 className="font-medium mb-1">Choose player to Freeze</h3>
                   <div className="flex flex-wrap gap-2">
-                    {room.flip7?.hands?.map(p => (
-                      <button key={p.id} className="px-2 py-1 rounded bg-amber-600 text-white" onClick={() => freezeTarget(p.id)}>
-                        {p.name}
-                      </button>
-                    ))}
+                    {room.flip7?.hands
+                      ?.filter(p => !(room.flip7?.frozen || []).includes(p.id))
+                      .map(p => (
+                        <button
+                          key={p.id}
+                          className="px-2 py-1 rounded bg-amber-600 text-white"
+                          onClick={() => freezeTarget(p.id)}
+                        >
+                          {p.name}
+                        </button>
+                      ))}
                   </div>
                 </div>
               )}
@@ -481,7 +500,9 @@ export default function MobilePage() {
                   <h3 className="font-medium mb-1">Give Second Chance to</h3>
                   <div className="flex flex-wrap gap-2">
                     {room.flip7?.hands
-                      ?.filter(p => p.id !== playerId && !(room.flip7?.secondChance || []).includes(p.id))
+                      ?.filter(p => p.id !== playerId &&
+                        !(room.flip7?.secondChance || []).includes(p.id) &&
+                        !(room.flip7?.frozen || []).includes(p.id))
                       .map(p => (
                         <button key={p.id} className="px-2 py-1 rounded bg-amber-600 text-white" onClick={() => giftSecondChance(p.id)}>
                           {p.name}
