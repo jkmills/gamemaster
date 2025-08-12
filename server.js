@@ -113,6 +113,8 @@ app.prepare().then(() => {
       if (f.stayed.has(playerId) || f.busted.has(playerId)) return;
       // draw and apply card effects
       drawFlip7Card(room, playerId);
+      const target = findSocketByPlayer(io, roomCode, playerId);
+      if (target) target.emit('playerHand', { hand: room.players.get(playerId)?.hand || [] });
       // advance turn to next non-stayed/non-busted player
       advanceFlip7Turn(room);
       // if round end conditions met, score and maybe finish game
@@ -251,8 +253,12 @@ app.prepare().then(() => {
           room.flip7.numScore.set(pid, 0);
           room.flip7.modScore.set(pid, 0);
           room.flip7.roundScore.set(pid, 0);
+          const p = room.players.get(pid);
+          if (p) p.hand = [];
           // deal one opening card face-up
           drawFlip7Card(room, pid);
+          const target = findSocketByPlayer(io, roomCode, pid);
+          if (target) target.emit('playerHand', { hand: room.players.get(pid)?.hand || [] });
         }
         advanceFlip7Turn(room);
       }
@@ -500,13 +506,16 @@ function serializeFlip7(room) {
   const stayed = Array.from(f.stayed.values());
   const busted = Array.from(f.busted.values());
   const uniquesCount = Array.from(f.uniques.entries()).map(([id, set]) => ({ id, name: room.players.get(id)?.name || id, count: set.size }));
-  return { scores, roundScore, stayed, busted, uniquesCount, roundOver: !!f.roundOver };
+  const hands = Array.from(room.players.entries()).map(([id, p]) => ({ id, name: p.name, cards: p.hand }));
+  return { scores, roundScore, stayed, busted, uniquesCount, roundOver: !!f.roundOver, hands };
 }
 
 function drawFlip7Card(room, playerId) {
   const f = room.flip7;
   if (!room.deck.length) return;
   const card = room.deck.shift();
+  const p = room.players.get(playerId);
+  if (p) p.hand.push(card);
   const numMatch = card.match(/^\d+$/);
   if (numMatch) {
     const num = parseInt(card, 10);
@@ -619,5 +628,11 @@ function maybeFinishFlip7Round(io, room) {
     f.numScore.set(pid, 0);
     f.modScore.set(pid, 0);
     f.roundScore.set(pid, 0);
+    const p = room.players.get(pid);
+    if (p) p.hand = [];
+    drawFlip7Card(room, pid);
+    const target = findSocketByPlayer(io, room.code, pid);
+    if (target) target.emit('playerHand', { hand: room.players.get(pid)?.hand || [] });
   }
+  advanceFlip7Turn(room);
 }

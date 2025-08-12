@@ -36,6 +36,28 @@ function UnoCard({ code }: { code: string }) {
   );
 }
 
+function Flip7Card({ code }: { code: string }) {
+  const src = useMemo(() => {
+    const map: Record<string, string> = {
+      Freeze: '/flip7/F7_Freeze.png',
+      Flip3: '/flip7/F7_Flip3.png',
+      SecondChance: '/flip7/F7_SecondChance.png',
+      x2: '/flip7/F7_Mult2.png',
+      '+2': '/flip7/F7_Plus2.png',
+      '+4': '/flip7/F7_Plus4.png',
+      '+6': '/flip7/F7_Plus6.png',
+      '+8': '/flip7/F7_Plus8.png',
+      '+10': '/flip7/F7_Plus10.png',
+    };
+    return map[code] || `/flip7/F7_${code}.png`;
+  }, [code]);
+  return (
+    <div className="relative w-32 h-48 rounded overflow-hidden">
+      <Image src={src} alt={code} fill style={{ objectFit: 'cover' }} />
+    </div>
+  );
+}
+
 function readableCard(code: string) {
   let name = formatCard(code);
   if (code.startsWith('W')) {
@@ -47,6 +69,7 @@ function readableCard(code: string) {
 
 type RoomState = {
   code: string;
+  gameId?: string;
   status: "lobby" | "active" | "finished";
   discardTop: string | null;
   deckCount: number;
@@ -54,6 +77,7 @@ type RoomState = {
   playerCounts: { id: string; name: string; avatar?: string | null; count: number }[];
   turn: string | null;
   winner: string | null;
+  flip7?: { hands: { id: string; name: string; cards: string[] }[]; stayed: string[]; busted: string[] };
 };
 
 type GameInfo = { id: string; name: string };
@@ -405,38 +429,56 @@ export default function TablePage() {
               </div>
             )}
             <div className="text-sm flex items-end gap-4">
-              <div>
-                <span className="font-mono text-xs">Draw Deck</span>
-                <div className="relative w-32 h-48">
-                  {Array.from({ length: Math.min(5, room.deckCount) }).map((_, i) => (
-                    <div key={i} className="absolute w-full h-full rounded overflow-hidden" style={{ transform: `translate(${i*2}px, ${i*1}px)` }}>
-                      <Image src="/uno/uno_back.png" alt="Card Back" fill style={{ objectFit: 'cover' }} />
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-1 text-center text-[10px] leading-none font-mono text-gray-700 dark:text-gray-300">
-                  {room.deckCount} cards
-                </div>
-              </div>
-              <div>
-                <span className="font-mono text-xs">Discard Pile</span>
-                {room.discardTop ? (
-                  <div ref={discardRef} className="relative w-32 h-48" aria-label={`Discard ${room.discardTop}`}>
-                    {Array.from({ length: Math.min(5, room.discardCount) }).map((_, i) => (
-                      <div key={i} className="absolute w-full h-full" style={{ transform: `translate(${i*2}px, ${i*1}px)` }}>
-                        <UnoCard code={room.discardTop!} />
+              {room.gameId === 'flip7' ? (
+                <div>
+                  <span className="font-mono text-xs">Draw Deck</span>
+                  <div className="relative w-32 h-48">
+                    {Array.from({ length: Math.min(5, room.deckCount) }).map((_, i) => (
+                      <div key={i} className="absolute w-full h-full rounded overflow-hidden" style={{ transform: `translate(${i*2}px, ${i*1}px)` }}>
+                        <Image src="/flip7/F7_Back.png" alt="Card Back" fill style={{ objectFit: 'cover' }} />
                       </div>
                     ))}
                   </div>
-                ) : (
-                  <div className="relative w-32 h-48 border-2 border-dashed rounded border-white/20 flex items-center justify-center">
-                    <span className="text-xs text-white/40">Empty</span>
+                  <div className="mt-1 text-center text-[10px] leading-none font-mono text-gray-700 dark:text-gray-300">
+                    {room.deckCount} cards
                   </div>
-                )}
-                <div className="mt-1 text-center text-[10px] leading-none font-mono text-gray-700 dark:text-gray-300" aria-hidden>
-                  {room.discardCount} cards
                 </div>
-              </div>
+              ) : (
+                <>
+                  <div>
+                    <span className="font-mono text-xs">Draw Deck</span>
+                    <div className="relative w-32 h-48">
+                      {Array.from({ length: Math.min(5, room.deckCount) }).map((_, i) => (
+                        <div key={i} className="absolute w-full h-full rounded overflow-hidden" style={{ transform: `translate(${i*2}px, ${i*1}px)` }}>
+                          <Image src="/uno/uno_back.png" alt="Card Back" fill style={{ objectFit: 'cover' }} />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-1 text-center text-[10px] leading-none font-mono text-gray-700 dark:text-gray-300">
+                      {room.deckCount} cards
+                    </div>
+                  </div>
+                  <div>
+                    <span className="font-mono text-xs">Discard Pile</span>
+                    {room.discardTop ? (
+                      <div ref={discardRef} className="relative w-32 h-48" aria-label={`Discard ${room.discardTop}`}>
+                        {Array.from({ length: Math.min(5, room.discardCount) }).map((_, i) => (
+                          <div key={i} className="absolute w-full h-full" style={{ transform: `translate(${i*2}px, ${i*1}px)` }}>
+                            <UnoCard code={room.discardTop!} />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="relative w-32 h-48 border-2 border-dashed rounded border-white/20 flex items-center justify-center">
+                        <span className="text-xs text-white/40">Empty</span>
+                      </div>
+                    )}
+                    <div className="mt-1 text-center text-[10px] leading-none font-mono text-gray-700 dark:text-gray-300" aria-hidden>
+                      {room.discardCount} cards
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
             <div className="text-sm">Turn: <span className="font-mono">{room.turn ?? "—"}</span>{currentPlayerName ? ` – ${currentPlayerName}` : ''}</div>
             {room.status === 'finished' && (
@@ -451,24 +493,46 @@ export default function TablePage() {
             )}
             <div>
               <h4 className="font-medium">Players</h4>
-              <table className="w-full text-sm mt-2">
-                <thead>
-                  <tr className="text-left">
-                    <th className="p-2">Name</th>
-                    <th className="p-2">ID</th>
-                    <th className="p-2">Cards</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {room.playerCounts.map((p) => (
-                    <tr key={p.id} className="border-t border-white/10">
-                      <td className="p-2">{p.name?.slice(0,16)}</td>
-                      <td className="p-2 font-mono">{p.id}</td>
-                      <td className="p-2">{p.count}</td>
-                    </tr>
+              {room.gameId === 'flip7' ? (
+                <div className="flex flex-wrap gap-4 mt-2">
+                  {room.flip7?.hands.map(p => (
+                    <div key={p.id}>
+                      <div className="font-semibold">
+                        {p.name}
+                        {room.flip7?.stayed.includes(p.id)
+                          ? ' (Stayed)'
+                          : room.flip7?.busted.includes(p.id)
+                          ? ' (Busted)'
+                          : ''}
+                      </div>
+                      <div className="flex gap-1 mt-1">
+                        {p.cards.map((c, i) => (
+                          <Flip7Card key={i} code={c} />
+                        ))}
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
+                </div>
+              ) : (
+                <table className="w-full text-sm mt-2">
+                  <thead>
+                    <tr className="text-left">
+                      <th className="p-2">Name</th>
+                      <th className="p-2">ID</th>
+                      <th className="p-2">Cards</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {room.playerCounts.map((p) => (
+                      <tr key={p.id} className="border-t border-white/10">
+                        <td className="p-2">{p.name?.slice(0,16)}</td>
+                        <td className="p-2 font-mono">{p.id}</td>
+                        <td className="p-2">{p.count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         )}
