@@ -32,9 +32,9 @@ Flip 7 is a cheeky push-your-luck card game for 3+ players, ages 8+. First to 20
 ---
 
 ## Action Cards Explained  
-- **Freeze**: Targeted player banks their current points and is out for the round. :contentReference[oaicite:10]{index=10}  
-- **Flip Three**: Target must draw three cards in sequence. Duplicates still bust you. If another action appears while drawing, it resolves *after* the three draws—or after a bust. :contentReference[oaicite:11]{index=11}  
-- **Second Chance**: Stash it. If you bust with a duplicate, discard the duplicate *and* this card instead of busting. Only one can be held—extra ones must be passed on or discarded. Discard all at round end. :contentReference[oaicite:12]{index=12}
+- **Freeze**: When drawn, choose any player (including yourself) to immediately bank their current points and sit out the round. :contentReference[oaicite:10]{index=10}
+- **Flip Three**: Target must draw three cards in sequence. Duplicates still bust you. If another action appears while drawing, it resolves *after* the three draws—or after a bust. :contentReference[oaicite:11]{index=11}
+- **Second Chance**: Stash it. If you would bust with a duplicate, press **Use Your Second Chance** to discard the duplicate *and* this card instead. Only one may be held—extra copies must be given to a player without one or discarded if none exist. Discard all at round end. :contentReference[oaicite:12]{index=12}
 
 > If you're the only active player left, you get to play any Action cards on yourself. Because why not? :contentReference[oaicite:13]{index=13}
 

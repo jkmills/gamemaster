@@ -110,13 +110,13 @@ app.prepare().then(() => {
       if (room.order[room.turnIndex] !== playerId) return;
       const f = room.flip7;
       if (!f || f.roundOver) return;
-      if (f.pendingFlip3) return;
+      if (f.pendingFlip3 || f.pendingFreeze || f.pendingSecondChance || f.pendingSecondChanceGift) return;
       if (f.stayed.has(playerId) || f.busted.has(playerId)) return;
       // draw and apply card effects
       drawFlip7Card(room, playerId);
       const target = findSocketByPlayer(io, roomCode, playerId);
       if (target) target.emit('playerHand', { hand: room.players.get(playerId)?.hand || [] });
-      if (!f.pendingFlip3) {
+      if (!f.pendingFlip3 && !f.pendingFreeze && !f.pendingSecondChance && !f.pendingSecondChanceGift) {
         // advance turn to next non-stayed/non-busted player
         advanceFlip7Turn(room);
         // if round end conditions met, score and maybe finish game
@@ -131,7 +131,7 @@ app.prepare().then(() => {
       if (room.order[room.turnIndex] !== playerId) return;
       const f = room.flip7;
       if (!f || f.roundOver) return;
-      if (f.pendingFlip3) return;
+      if (f.pendingFlip3 || f.pendingFreeze || f.pendingSecondChance || f.pendingSecondChanceGift) return;
       f.stayed.add(playerId);
       advanceFlip7Turn(room);
       maybeFinishFlip7Round(io, room);
@@ -154,6 +154,70 @@ app.prepare().then(() => {
         }
       }
       f.pendingFlip3 = null;
+      advanceFlip7Turn(room);
+      maybeFinishFlip7Round(io, room);
+      io.of('/game').to(`instance:${roomCode}`).emit('roomState', serializeRoom(room));
+    });
+
+    socket.on('flip7:freezeTarget', ({ roomCode, playerId, targetId }) => {
+      const room = rooms.get(roomCode);
+      if (!room || room.gameId !== 'flip7') return;
+      const f = room.flip7;
+      if (!f || f.pendingFreeze !== playerId) return;
+      f.stayed.add(targetId);
+      f.pendingFreeze = null;
+      advanceFlip7Turn(room);
+      maybeFinishFlip7Round(io, room);
+      io.of('/game').to(`instance:${roomCode}`).emit('roomState', serializeRoom(room));
+    });
+
+    socket.on('flip7:useSecondChance', ({ roomCode, playerId }) => {
+      const room = rooms.get(roomCode);
+      if (!room || room.gameId !== 'flip7') return;
+      const f = room.flip7;
+      if (!f || !f.pendingSecondChance || f.pendingSecondChance.playerId !== playerId) return;
+      const card = f.pendingSecondChance.card;
+      const p = room.players.get(playerId);
+      if (p) {
+        const idx = p.hand.indexOf(card);
+        if (idx !== -1) p.hand.splice(idx, 1);
+        const scIdx = p.hand.indexOf('SecondChance');
+        if (scIdx !== -1) p.hand.splice(scIdx, 1);
+      }
+      f.secondChance.delete(playerId);
+      f.pendingSecondChance = null;
+      const target = findSocketByPlayer(io, roomCode, playerId);
+      if (target) target.emit('playerHand', { hand: room.players.get(playerId)?.hand || [] });
+      const base = f.numScore.get(playerId) || 0;
+      const mod = f.modScore.get(playerId) || 0;
+      const total = base * (f.x2.has(playerId) ? 2 : 1) + mod;
+      f.roundScore.set(playerId, total);
+      advanceFlip7Turn(room);
+      maybeFinishFlip7Round(io, room);
+      io.of('/game').to(`instance:${roomCode}`).emit('roomState', serializeRoom(room));
+    });
+
+    socket.on('flip7:giftSecondChance', ({ roomCode, playerId, targetId }) => {
+      const room = rooms.get(roomCode);
+      if (!room || room.gameId !== 'flip7') return;
+      const f = room.flip7;
+      if (!f || f.pendingSecondChanceGift !== playerId) return;
+      const p = room.players.get(playerId);
+      if (!p) return;
+      const scIdx = p.hand.indexOf('SecondChance');
+      if (scIdx !== -1) p.hand.splice(scIdx, 1);
+      if (targetId && targetId !== playerId && !f.secondChance.has(targetId)) {
+        const tp = room.players.get(targetId);
+        if (tp) {
+          tp.hand.push('SecondChance');
+          f.secondChance.add(targetId);
+          const ts = findSocketByPlayer(io, roomCode, targetId);
+          if (ts) ts.emit('playerHand', { hand: tp.hand });
+        }
+      }
+      const srcSock = findSocketByPlayer(io, roomCode, playerId);
+      if (srcSock) srcSock.emit('playerHand', { hand: p.hand });
+      f.pendingSecondChanceGift = null;
       advanceFlip7Turn(room);
       maybeFinishFlip7Round(io, room);
       io.of('/game').to(`instance:${roomCode}`).emit('roomState', serializeRoom(room));
@@ -283,6 +347,9 @@ app.prepare().then(() => {
         room.flip7.roundScore = new Map(); // pid -> running total after modifiers/multipliers
         room.flip7.ready = new Set();
         room.flip7.pendingFlip3 = null;
+        room.flip7.pendingFreeze = null;
+        room.flip7.pendingSecondChance = null;
+        room.flip7.pendingSecondChanceGift = null;
         // cumulative scores across rounds
         room.flip7.scores = room.flip7.scores || new Map();
         // initialize for any missing players this round
@@ -546,8 +613,23 @@ function serializeFlip7(room) {
   const busted = Array.from(f.busted.values());
   const uniquesCount = Array.from(f.uniques.entries()).map(([id, set]) => ({ id, name: room.players.get(id)?.name || id, count: set.size }));
   const hands = Array.from(room.players.entries()).map(([id, p]) => ({ id, name: p.name, cards: p.hand }));
+  const secondChance = Array.from(f.secondChance.values());
   const ready = Array.from(f.ready || []);
-  return { scores, roundScore, stayed, busted, uniquesCount, roundOver: !!f.roundOver, hands, pendingFlip3: f.pendingFlip3 || null, ready };
+  return {
+    scores,
+    roundScore,
+    stayed,
+    busted,
+    uniquesCount,
+    roundOver: !!f.roundOver,
+    hands,
+    pendingFlip3: f.pendingFlip3 || null,
+    pendingFreeze: f.pendingFreeze || null,
+    pendingSecondChance: f.pendingSecondChance ? f.pendingSecondChance.playerId : null,
+    pendingSecondChanceGift: f.pendingSecondChanceGift || null,
+    secondChance,
+    ready,
+  };
 }
 
 function drawFlip7Card(room, playerId) {
@@ -562,7 +644,12 @@ function drawFlip7Card(room, playerId) {
     const set = f.uniques.get(playerId) || new Set();
     if (set.has(card)) {
       if (f.secondChance.has(playerId)) {
-        f.secondChance.delete(playerId);
+        f.pendingSecondChance = { playerId, card };
+        const base = f.numScore.get(playerId) || 0;
+        const mod = f.modScore.get(playerId) || 0;
+        const total = base * (f.x2.has(playerId) ? 2 : 1) + mod;
+        f.roundScore.set(playerId, total);
+        return;
       } else {
         f.busted.add(playerId);
         f.roundScore.set(playerId, 0);
@@ -580,9 +667,19 @@ function drawFlip7Card(room, playerId) {
     const mod = parseInt(card.slice(1), 10);
     f.modScore.set(playerId, (f.modScore.get(playerId) || 0) + mod);
   } else if (card === 'SecondChance') {
-    f.secondChance.add(playerId);
+    if (f.secondChance.has(playerId)) {
+      const eligible = room.order.filter(pid => pid !== playerId && !f.secondChance.has(pid));
+      if (eligible.length) {
+        f.pendingSecondChanceGift = playerId;
+      } else {
+        const idx = p.hand.lastIndexOf('SecondChance');
+        if (idx !== -1) p.hand.splice(idx, 1);
+      }
+    } else {
+      f.secondChance.add(playerId);
+    }
   } else if (card === 'Freeze') {
-    f.stayed.add(playerId);
+    f.pendingFreeze = playerId;
   } else if (card === 'Flip3') {
     f.pendingFlip3 = playerId;
   }
@@ -670,6 +767,9 @@ function startFlip7Round(io, room) {
   f.secondChance = new Set();
   f.roundOver = false;
   f.pendingFlip3 = null;
+  f.pendingFreeze = null;
+  f.pendingSecondChance = null;
+  f.pendingSecondChanceGift = null;
   f.ready = new Set();
   for (const pid of room.order) {
     f.uniques.set(pid, new Set());

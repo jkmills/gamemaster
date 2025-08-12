@@ -98,6 +98,10 @@ type RoomState = {
     roundOver: boolean;
     hands?: { id: string; name: string; cards: string[] }[];
     pendingFlip3?: string | null;
+    pendingFreeze?: string | null;
+    pendingSecondChance?: string | null;
+    pendingSecondChanceGift?: string | null;
+    secondChance?: string[];
     ready?: string[];
   };
 };
@@ -242,6 +246,9 @@ export default function MobilePage() {
   const flip7Hit = () => socket?.emit("flip7:hit", { roomCode, playerId });
   const flip7Stay = () => socket?.emit("flip7:stay", { roomCode, playerId });
   const flip3Target = (targetId: string) => socket?.emit("flip7:flip3Target", { roomCode, playerId, targetId });
+  const freezeTarget = (targetId: string) => socket?.emit("flip7:freezeTarget", { roomCode, playerId, targetId });
+  const useSecondChance = () => socket?.emit("flip7:useSecondChance", { roomCode, playerId });
+  const giftSecondChance = (targetId: string) => socket?.emit("flip7:giftSecondChance", { roomCode, playerId, targetId });
   const startNextRound = () => socket?.emit("flip7:startNextRound", { roomCode, playerId });
   const play = (idx: number) => {
     if (!socket) return;
@@ -447,6 +454,39 @@ export default function MobilePage() {
                         {p.name}
                       </button>
                     ))}
+                  </div>
+                </div>
+              )}
+              {room.flip7?.pendingFreeze === playerId && (
+                <div className="mt-2">
+                  <h3 className="font-medium mb-1">Choose player to Freeze</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {room.flip7?.hands?.map(p => (
+                      <button key={p.id} className="px-2 py-1 rounded bg-amber-600 text-white" onClick={() => freezeTarget(p.id)}>
+                        {p.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {room.flip7?.pendingSecondChance === playerId && (
+                <div className="mt-2">
+                  <button className="px-4 py-2 rounded bg-green-600 text-white" onClick={useSecondChance}>
+                    Use Your Second Chance
+                  </button>
+                </div>
+              )}
+              {room.flip7?.pendingSecondChanceGift === playerId && (
+                <div className="mt-2">
+                  <h3 className="font-medium mb-1">Give Second Chance to</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {room.flip7?.hands
+                      ?.filter(p => p.id !== playerId && !(room.flip7?.secondChance || []).includes(p.id))
+                      .map(p => (
+                        <button key={p.id} className="px-2 py-1 rounded bg-amber-600 text-white" onClick={() => giftSecondChance(p.id)}>
+                          {p.name}
+                        </button>
+                      ))}
                   </div>
                 </div>
               )}

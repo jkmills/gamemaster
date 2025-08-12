@@ -83,6 +83,10 @@ type RoomState = {
     busted: string[];
     roundOver?: boolean;
     pendingFlip3?: string | null;
+    pendingFreeze?: string | null;
+    pendingSecondChance?: string | null;
+    pendingSecondChanceGift?: string | null;
+    secondChance?: string[];
     ready?: string[];
   };
 };
